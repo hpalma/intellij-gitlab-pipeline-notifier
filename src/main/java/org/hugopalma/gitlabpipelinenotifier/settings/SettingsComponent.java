@@ -2,11 +2,7 @@ package org.hugopalma.gitlabpipelinenotifier.settings;
 
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.ui.ToolbarDecorator;
-import com.intellij.ui.components.JBCheckBox;
-import com.intellij.ui.components.JBLabel;
-import com.intellij.ui.components.JBPasswordField;
-import com.intellij.ui.components.JBTextArea;
-import com.intellij.ui.components.JBTextField;
+import com.intellij.ui.components.*;
 import com.intellij.ui.table.JBTable;
 import com.intellij.util.ui.FormBuilder;
 import com.intellij.util.ui.JBFont;
@@ -41,7 +37,7 @@ public class SettingsComponent {
     private final JBCheckBox watchGitRemotes = new JBCheckBox("Watch projects matching the git remotes of open projects");
     private final JBTextArea extraProjects = new JBTextArea(4, 40);
 
-    private final JBCheckBox notifyOwnFailures = new JBCheckBox("Alert me when a pipeline I triggered fails");
+    private final JBCheckBox notifyOwnFailures = new JBCheckBox("Alert me when a pipeline I triggered fails with:");
     private final JBCheckBox ownStickyBalloon = new JBCheckBox("Sticky balloon and application icon badge");
     private final JBCheckBox ownSystemNotification = new JBCheckBox("System notification");
     private final JBCheckBox ownModalDialog = new JBCheckBox("Modal dialog");
@@ -58,13 +54,13 @@ public class SettingsComponent {
         extraProjects.setLineWrap(false);
 
         JButton testConnection = new JButton("Test connection");
-        testConnection.addActionListener(event -> testConnection());
+        testConnection.addActionListener(_ -> testConnection());
 
         JPanel tokenRow = new JPanel(new BorderLayout(JBUI.scale(8), 0));
         tokenRow.add(token, BorderLayout.CENTER);
         tokenRow.add(testConnection, BorderLayout.EAST);
 
-        notifyOwnFailures.addChangeListener(event -> updateOwnChannelsEnabled());
+        notifyOwnFailures.addChangeListener(_ -> updateOwnChannelsEnabled());
 
         JPanel ownChannels = new JPanel();
         ownChannels.setLayout(new BoxLayout(ownChannels, BoxLayout.Y_AXIS));
@@ -76,12 +72,12 @@ public class SettingsComponent {
         rulesTable.setPreferredScrollableViewportSize(new Dimension(JBUI.scale(520), JBUI.scale(120)));
         rulesTable.getColumnModel().getColumn(0).setMaxWidth(JBUI.scale(60));
         JPanel rulesPanel = ToolbarDecorator.createDecorator(rulesTable)
-                .setAddAction(button -> editRule(null))
-                .setEditAction(button -> editRule(selectedRule()))
-                .setRemoveAction(button -> removeSelectedRule())
+                .setAddAction(_ -> editRule(null))
+                .setEditAction(_ -> editRule(selectedRule()))
+                .setRemoveAction(_ -> removeSelectedRule())
                 .createPanel();
 
-        JScrollPane extraProjectsScroll = new JScrollPane(extraProjects);
+        JScrollPane extraProjectsScroll = new JBScrollPane(extraProjects);
         extraProjectsScroll.setPreferredSize(new Dimension(JBUI.scale(520), JBUI.scale(80)));
 
         mainPanel = FormBuilder.createFormBuilder()
@@ -93,22 +89,19 @@ public class SettingsComponent {
                 .addComponent(connectionResult)
                 .addLabeledComponent("Poll every (seconds):", pollInterval, 1, false)
                 .addComponent(new CommentLabel("Minimum " + Settings.MIN_POLL_SECONDS + " seconds."))
-                .addSeparator(UIUtil.DEFAULT_VGAP)
+                .addSeparator(UIUtil.LARGE_VGAP)
                 .addComponent(watchGitRemotes)
-                .addLabeledComponent("Also watch these projects:", extraProjectsScroll, 1, true)
-                .addComponent(new CommentLabel("One project path per line, e.g. group/subgroup/project"))
-                .addSeparator(UIUtil.DEFAULT_VGAP)
+                .addComponent(alertOnRetries)
+                .addSeparator(UIUtil.LARGE_VGAP)
                 .addComponent(notifyOwnFailures)
                 .addComponent(ownChannels)
-                .addSeparator(UIUtil.DEFAULT_VGAP)
+                .addSeparator(UIUtil.LARGE_VGAP)
+                .addLabeledComponent("Also watch these projects:", extraProjectsScroll, 1, true)
+                .addComponent(new CommentLabel("One project path per line, e.g. group/subgroup/project"))
+                .addSeparator(UIUtil.LARGE_VGAP)
                 .addLabeledComponent("Also alert me about:", rulesPanel, 1, true)
                 .addComponent(new CommentLabel(
                         "Rules for other people's pipelines. Each rule picks its own alert channels."))
-                .addSeparator(UIUtil.DEFAULT_VGAP)
-                .addComponent(alertOnRetries)
-                .addComponent(new CommentLabel(
-                        "Off: one alert per pipeline, however many times it is retried. "
-                                + "On: every failed run of it alerts again."))
                 .addComponentFillVertically(new JPanel(), 0)
                 .getPanel();
     }
