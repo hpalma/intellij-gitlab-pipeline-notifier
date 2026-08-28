@@ -60,13 +60,14 @@ public class NotifierStateTest {
     }
 
     @Test
-    public void retryKeysDoNotLeakIntoIdOnlyDedupe() {
+    public void turningRetryAlertsOffAgainRestoresOncePerPipeline() {
         NotifierState state = new NotifierState();
 
-        // Turning the setting off again must not resurrect a pipeline already alerted on, nor let a
-        // prior id-only alert be replayed once per revision.
         assertTrue(state.markAlerted(KEY, 1234L));
+        // Switching the setting on changes the key, so the pipeline gets one more alert - the price
+        // of not tracking which revision an id-only entry stood for.
         assertTrue(state.markAlerted(KEY, 1234L, "2026-08-21T10:00:00Z"));
+        // Switching it back off must return to the suppressed id-only key, not start over.
         assertFalse(state.markAlerted(KEY, 1234L));
     }
 

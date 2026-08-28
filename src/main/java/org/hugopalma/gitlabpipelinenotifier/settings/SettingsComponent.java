@@ -46,7 +46,7 @@ public class SettingsComponent {
     private final JBCheckBox ownSystemNotification = new JBCheckBox("System notification");
     private final JBCheckBox ownModalDialog = new JBCheckBox("Modal dialog");
 
-    private final JBCheckBox alertOnRetries = new JBCheckBox("Alert again when a retried pipeline fails again");
+    private final JBCheckBox alertOnRetries = new JBCheckBox("Alert again when a retried pipeline fails");
 
     private final List<NotificationRule> rules = new ArrayList<>();
     private final RulesTableModel rulesModel = new RulesTableModel();
