@@ -1,0 +1,9 @@
+.gradle
+build/
+out/
+.idea/
+.qodana/
+.intellijPlatform/
+.kotlin/
+.DS_Store
+!gradle/wrapper/gradle-wrapper.jar

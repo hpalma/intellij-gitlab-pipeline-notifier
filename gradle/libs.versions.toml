@@ -1,0 +1,19 @@
+[versions]
+# libraries
+junit = "4.13.2"
+# Match the copy bundled with the IntelliJ Platform (lib/intellij.libraries.gson.jar).
+gson = "2.13.2"
+
+# plugins
+changelog = "2.2.1"
+intelliJPlatform = "2.18.1"
+qodana = "2026.2.0"
+
+[libraries]
+junit = { group = "junit", name = "junit", version.ref = "junit" }
+gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
+
+[plugins]
+changelog = { id = "org.jetbrains.changelog", version.ref = "changelog" }
+intelliJPlatform = { id = "org.jetbrains.intellij.platform", version.ref = "intelliJPlatform" }
+qodana = { id = "org.jetbrains.qodana", version.ref = "qodana" }

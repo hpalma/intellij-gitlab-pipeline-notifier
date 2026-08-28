@@ -1,0 +1,24 @@
+<idea-plugin>
+    <id>org.hugopalma.gitlabpipelinenotifier</id>
+    <name>GitLab Pipeline Notifier</name>
+    <vendor>Hugo Palma</vendor>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>Git4Idea</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <!-- STICKY_BALLOON: the balloon stays up until the user dismisses it. -->
+        <notificationGroup id="GitLab Pipeline Notifier"
+                           displayType="STICKY_BALLOON"
+                           isLogByDefault="true"/>
+
+        <applicationConfigurable
+                parentId="tools"
+                instance="org.hugopalma.gitlabpipelinenotifier.settings.SettingsConfigurable"
+                id="org.hugopalma.gitlabpipelinenotifier.settings.SettingsConfigurable"
+                displayName="GitLab Pipeline Notifier"/>
+
+        <postStartupActivity
+                implementation="org.hugopalma.gitlabpipelinenotifier.startup.PipelineNotifierStartup"/>
+    </extensions>
+</idea-plugin>
