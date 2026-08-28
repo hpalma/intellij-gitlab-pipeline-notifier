@@ -43,12 +43,22 @@ public final class PipelinePoller implements Disposable {
 
     /** Caps backoff at 2^4 = 16x the configured poll interval. */
     private static final int MAX_BACKOFF_SHIFT = 4;
-    private static final int PER_PAGE = 20;
+    /** GitLab's maximum; keeps a large burst of failures to as few requests as possible. */
+    private static final int PER_PAGE = 100;
+    /** Safety valve on how many pages one query is allowed to page through in a single tick. */
+    private static final int MAX_PAGES = 10;
 
     private final Project project;
 
     /** Project id lookups are stable for a session; a rename is rare enough to need a restart. */
     private final Map<String, Long> projectIdCache = new HashMap<>();
+
+    // Reused across ticks so the underlying HttpClient - and its connection pool and keep-alive -
+    // survives from one poll to the next instead of being rebuilt (and its resources abandoned to
+    // the GC) every tick. Rebuilt only when the host or token actually changes.
+    private GitLabClient cachedClient;
+    private String cachedClientHost;
+    private String cachedClientToken;
 
     private ScheduledFuture<?> scheduled;
     private boolean stopped;
@@ -81,6 +91,9 @@ public final class PipelinePoller implements Disposable {
     public synchronized void restart() {
         stop();
         projectIdCache.clear();
+        cachedClient = null;
+        cachedClientHost = null;
+        cachedClientToken = null;
         backoffTicks = 0;
         start();
     }
@@ -153,7 +166,7 @@ public final class PipelinePoller implements Disposable {
             return;
         }
 
-        GitLabClient client = new GitLabClient(host, token);
+        GitLabClient client = clientFor(host, token);
         NotifierState notifierState = NotifierState.getInstance();
 
         String me = resolveUsername(client, notifierState);
@@ -196,23 +209,41 @@ public final class PipelinePoller implements Disposable {
         Map<Long, GitLabPipeline> matched = new LinkedHashMap<>();
         Map<Long, AlertChannels> matchedChannels = new LinkedHashMap<>();
 
+        // Whether every matching pipeline in [since, now) was actually seen. Results come back
+        // newest-first, so a page that comes back full means older matches may still be sitting on
+        // the next page; if MAX_PAGES is exhausted before that page runs dry, this target's window
+        // was not fully covered and the watermark must not advance - otherwise the leftover, older
+        // pipelines would fall before the new "since" and be silently skipped on every future tick.
+        boolean fullyCovered = true;
+
         for (PollQuery query : queries) {
-            List<GitLabPipeline> pipelines =
-                    client.failedPipelines(projectId, since, query.username(), PER_PAGE);
+            for (int page = 1; page <= MAX_PAGES; page++) {
+                List<GitLabPipeline> pipelines =
+                        client.failedPipelines(projectId, since, query.username(), PER_PAGE, page);
 
-            for (GitLabPipeline pipeline : pipelines) {
-                Instant updated = pipeline.updatedAtInstant();
-                if (updated != null && updated.isAfter(newest)) {
-                    newest = updated;
+                for (GitLabPipeline pipeline : pipelines) {
+                    Instant updated = pipeline.updatedAtInstant();
+                    if (updated != null && updated.isAfter(newest)) {
+                        newest = updated;
+                    }
+
+                    AlertChannels channels = RuleMatcher.match(pipeline, query.rules());
+                    if (!channels.any()) {
+                        continue;
+                    }
+
+                    matched.putIfAbsent(pipeline.id(), pipeline);
+                    matchedChannels.merge(pipeline.id(), channels, AlertChannels::merge);
                 }
 
-                AlertChannels channels = RuleMatcher.match(pipeline, query.rules());
-                if (!channels.any()) {
-                    continue;
+                if (pipelines.size() < PER_PAGE) {
+                    break;
                 }
-
-                matched.putIfAbsent(pipeline.id(), pipeline);
-                matchedChannels.merge(pipeline.id(), channels, AlertChannels::merge);
+                if (page == MAX_PAGES) {
+                    LOG.warn("GitLab pipeline backlog for " + target.key() + " exceeded " + (MAX_PAGES * PER_PAGE)
+                            + " results in one poll; watermark will not advance until it drains");
+                    fullyCovered = false;
+                }
             }
         }
 
@@ -229,7 +260,9 @@ public final class PipelinePoller implements Disposable {
             FailureAlerter.getInstance(project).alert(failure, matchedChannels.get(entry.getKey()));
         }
 
-        notifierState.advanceWatermark(target.key(), newest);
+        if (fullyCovered) {
+            notifierState.advanceWatermark(target.key(), newest);
+        }
     }
 
     /**
@@ -246,6 +279,15 @@ public final class PipelinePoller implements Disposable {
         }
         Instant updated = pipeline.updatedAtInstant();
         return updated == null ? null : updated.toString();
+    }
+
+    private synchronized GitLabClient clientFor(String host, String token) {
+        if (cachedClient == null || !host.equals(cachedClientHost) || !token.equals(cachedClientToken)) {
+            cachedClient = new GitLabClient(host, token);
+            cachedClientHost = host;
+            cachedClientToken = token;
+        }
+        return cachedClient;
     }
 
     private synchronized Long cachedProjectId(GitLabClient client, RemoteProject target) throws Exception {

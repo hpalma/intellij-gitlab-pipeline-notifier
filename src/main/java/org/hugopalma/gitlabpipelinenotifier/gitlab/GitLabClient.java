@@ -72,21 +72,26 @@ public class GitLabClient {
     }
 
     /**
-     * Failed pipelines updated since {@code updatedAfter}.
+     * Failed pipelines updated since {@code updatedAfter}, one page of results at a time.
      *
      * <p>{@code username} is applied server-side because the list response carries no user field.
-     * Glob refs cannot be expressed here, so the caller filters those client-side.
+     * Glob refs cannot be expressed here, so the caller filters those client-side. {@code page} is
+     * 1-based; the caller is expected to keep requesting subsequent pages while a full page comes
+     * back, since results are sorted newest-first and a partial fetch would otherwise silently
+     * drop the oldest matches in a burst larger than one page.
      */
     public List<GitLabPipeline> failedPipelines(long projectId,
                                                 Instant updatedAfter,
                                                 String username,
-                                                int perPage) throws IOException, InterruptedException {
+                                                int perPage,
+                                                int page) throws IOException, InterruptedException {
         List<Map.Entry<String, String>> params = new ArrayList<>();
         params.add(Map.entry("status", "failed"));
         params.add(Map.entry("updated_after", DateTimeFormatter.ISO_INSTANT.format(updatedAfter)));
         params.add(Map.entry("order_by", "updated_at"));
         params.add(Map.entry("sort", "desc"));
         params.add(Map.entry("per_page", String.valueOf(perPage)));
+        params.add(Map.entry("page", String.valueOf(page)));
         if (username != null && !username.isBlank()) {
             params.add(Map.entry("username", username));
         }

@@ -84,26 +84,26 @@ public class PipelineFailureDialog extends DialogWrapper {
     }
 
     private JPanel renderFailure(PipelineFailure failure) {
-        JBLabel header = new JBLabel(failure.title(), UIManager.getIcon("OptionPane.errorIcon"), JBLabel.LEADING);
+        JBLabel header = plainLabel(failure.title(), UIManager.getIcon("OptionPane.errorIcon"));
         header.setFont(header.getFont().deriveFont(Font.BOLD, header.getFont().getSize() + 2f));
 
         // The ActionLink constructors overload on ActionListener and AnAction, so an untyped
         // lambda is ambiguous; the cast picks the Swing one.
         ActionLink openLink = new ActionLink("Open in GitLab",
-                (ActionListener) event -> BrowserUtil.browse(failure.pipeline().webUrl()));
+                (ActionListener) _ -> BrowserUtil.browse(failure.pipeline().webUrl()));
 
         FormBuilder builder = FormBuilder.createFormBuilder()
                 .addComponent(header)
-                .addLabeledComponent("Branch:", new JBLabel(nullToEmpty(failure.pipeline().ref())))
+                .addLabeledComponent("Branch:", plainLabel(nullToEmpty(failure.pipeline().ref())))
                 .addLabeledComponent("Pipeline:",
-                        new JBLabel("#" + failure.pipeline().id() + " (" + failure.pipeline().shortSha() + ")"))
-                .addLabeledComponent("Source:", new JBLabel(nullToEmpty(failure.pipeline().source())));
+                        plainLabel("#" + failure.pipeline().id() + " (" + failure.pipeline().shortSha() + ")"))
+                .addLabeledComponent("Source:", plainLabel(nullToEmpty(failure.pipeline().source())));
 
         if (failure.triggeredBy() != null) {
-            builder.addLabeledComponent("Triggered by:", new JBLabel(failure.triggeredBy()));
+            builder.addLabeledComponent("Triggered by:", plainLabel(failure.triggeredBy()));
         }
         if (!failure.failedJobs().isEmpty()) {
-            builder.addLabeledComponent("Failed jobs:", new JBLabel(String.join(", ", failure.failedJobs())));
+            builder.addLabeledComponent("Failed jobs:", plainLabel(String.join(", ", failure.failedJobs())));
         }
 
         JPanel panel = builder.addComponent(openLink).getPanel();
@@ -113,6 +113,21 @@ public class PipelineFailureDialog extends DialogWrapper {
 
     private static String nullToEmpty(String value) {
         return value == null ? "" : value;
+    }
+
+    /**
+     * Branch names, job names and other GitLab-sourced text are untrusted and can start with
+     * "&lt;html&gt;", which Swing labels otherwise auto-render as markup. Disabling HTML
+     * interpretation keeps every label's text literal regardless of content.
+     */
+    private static JBLabel plainLabel(String text) {
+        return plainLabel(text, null);
+    }
+
+    private static JBLabel plainLabel(String text, javax.swing.Icon icon) {
+        JBLabel label = icon == null ? new JBLabel(text) : new JBLabel(text, icon, JBLabel.LEADING);
+        label.putClientProperty("html.disable", Boolean.TRUE);
+        return label;
     }
 
     @Override
