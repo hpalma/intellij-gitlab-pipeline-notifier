@@ -163,53 +163,73 @@ public final class PipelinePoller implements Disposable {
         }
 
         for (RemoteProject target : targets) {
-            long projectId = cachedProjectId(client, target);
-
-            Instant now = Instant.now();
-            Instant since = notifierState.watermarkFor(target.key(), now);
-            Instant newest = since;
-
-            // Collect across every query before alerting: a pipeline can come back from more than
-            // one query (say the "my failures" query and a catch-all rule), and it should get the
-            // union of what those rules asked for rather than whichever query happened to run first.
-            Map<Long, GitLabPipeline> matched = new LinkedHashMap<>();
-            Map<Long, AlertChannels> matchedChannels = new LinkedHashMap<>();
-
-            for (PollQuery query : queries) {
-                List<GitLabPipeline> pipelines =
-                        client.failedPipelines(projectId, since, query.username(), PER_PAGE);
-
-                for (GitLabPipeline pipeline : pipelines) {
-                    Instant updated = pipeline.updatedAtInstant();
-                    if (updated != null && updated.isAfter(newest)) {
-                        newest = updated;
-                    }
-
-                    AlertChannels channels = RuleMatcher.match(pipeline, query.rules());
-                    if (!channels.any()) {
-                        continue;
-                    }
-
-                    matched.putIfAbsent(pipeline.id(), pipeline);
-                    matchedChannels.merge(pipeline.id(), channels, AlertChannels::merge);
-                }
+            // A single misconfigured or renamed target (bad path, deleted project) must not take
+            // down polling for every other watched project - so its failure is contained here
+            // rather than propagating up to tick(), which would back off the whole poller.
+            // GitLabAuthException is the exception: a bad token affects every target, so it still
+            // propagates and stops polling outright.
+            try {
+                pollTarget(client, notifierState, settings, queries, target, me);
+            } catch (GitLabAuthException | InterruptedException e) {
+                throw e;
+            } catch (Exception e) {
+                LOG.warn("GitLab poll failed for " + target.key() + ", skipping this tick", e);
             }
+        }
+    }
 
-            for (Map.Entry<Long, GitLabPipeline> entry : matched.entrySet()) {
-                // Dedupe after matching, so a retried pipeline that still fails is not
-                // re-announced just because GitLab bumped its updated_at - unless the user asked
-                // to hear about retries, in which case that bump is exactly the signal we key on.
-                if (!notifierState.markAlerted(target.key(), entry.getKey(),
-                        retryRevision(settings, entry.getValue()))) {
+    private void pollTarget(GitLabClient client,
+                             NotifierState notifierState,
+                             Settings.State settings,
+                             List<PollQuery> queries,
+                             RemoteProject target,
+                             String me) throws Exception {
+        long projectId = cachedProjectId(client, target);
+
+        Instant now = Instant.now();
+        Instant since = notifierState.watermarkFor(target.key(), now);
+        Instant newest = since;
+
+        // Collect across every query before alerting: a pipeline can come back from more than
+        // one query (say the "my failures" query and a catch-all rule), and it should get the
+        // union of what those rules asked for rather than whichever query happened to run first.
+        Map<Long, GitLabPipeline> matched = new LinkedHashMap<>();
+        Map<Long, AlertChannels> matchedChannels = new LinkedHashMap<>();
+
+        for (PollQuery query : queries) {
+            List<GitLabPipeline> pipelines =
+                    client.failedPipelines(projectId, since, query.username(), PER_PAGE);
+
+            for (GitLabPipeline pipeline : pipelines) {
+                Instant updated = pipeline.updatedAtInstant();
+                if (updated != null && updated.isAfter(newest)) {
+                    newest = updated;
+                }
+
+                AlertChannels channels = RuleMatcher.match(pipeline, query.rules());
+                if (!channels.any()) {
                     continue;
                 }
 
-                PipelineFailure failure = buildFailure(client, projectId, target, entry.getValue(), me);
-                FailureAlerter.getInstance(project).alert(failure, matchedChannels.get(entry.getKey()));
+                matched.putIfAbsent(pipeline.id(), pipeline);
+                matchedChannels.merge(pipeline.id(), channels, AlertChannels::merge);
+            }
+        }
+
+        for (Map.Entry<Long, GitLabPipeline> entry : matched.entrySet()) {
+            // Dedupe after matching, so a retried pipeline that still fails is not
+            // re-announced just because GitLab bumped its updated_at - unless the user asked
+            // to hear about retries, in which case that bump is exactly the signal we key on.
+            if (!notifierState.markAlerted(target.key(), entry.getKey(),
+                    retryRevision(settings, entry.getValue()))) {
+                continue;
             }
 
-            notifierState.advanceWatermark(target.key(), newest);
+            PipelineFailure failure = buildFailure(client, projectId, target, entry.getValue(), me);
+            FailureAlerter.getInstance(project).alert(failure, matchedChannels.get(entry.getKey()));
         }
+
+        notifierState.advanceWatermark(target.key(), newest);
     }
 
     /**
