@@ -30,7 +30,7 @@ Credential Store, or libsecret), never in plain-text settings.
 1. Create a GitLab personal access token with the `read_api` scope.
 2. **Settings | Tools | GitLab Pipeline Notifier** — set your GitLab host and paste the token, then
    hit **Test connection** to confirm it resolves your username.
-3. Optionally add extra project paths (`group/subgroup/project`) and notification rules.
+3. Optionally add extra projects and notification rules.
 
 ## Building
 
