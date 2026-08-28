@@ -4,9 +4,9 @@ An IntelliJ Platform plugin that watches your GitLab pipelines and makes damn su
 one fails.
 
 <!-- Plugin description -->
-Watches GitLab CI pipelines over the GitLab REST API and raises a hard-to-miss alert when one fails.
+Watches GitLab CI pipelines over the GitLab REST API and raises a hard-to-miss alerts when one fails.
 
-By default it alerts on pipelines **you** triggered, in the GitLab projects matching the git remotes
+By default it alerts on pipelines **you** triggered in the GitLab projects matching the git remotes
 of the projects you have open. You can also add extra projects to watch, and define rules to be
 alerted about other people's failures — filtered by triggering user, branch/tag glob, and pipeline
 source (push, merge request, schedule, web, trigger, api).
@@ -19,9 +19,6 @@ Each rule chooses how loud it gets:
   background. The platform suppresses this automatically while the IDE is focused.
 - **Modal dialog** — a blocking dialog brought to the front. Maximum visibility, maximum
   interruption; off by default for everything except your own failures.
-
-A pipeline alerts once, however many times it is retried. Turn on **Alert again when a retried
-pipeline fails again** if you would rather hear about every failed run of it.
 
 Configure it under **Settings | Tools | GitLab Pipeline Notifier**. You need a GitLab personal access
 token with the `read_api` scope; it is stored in the IDE's password safe (macOS Keychain, Windows
