@@ -39,6 +39,7 @@ public class GitLabClient {
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(20);
     private static final Type PIPELINE_LIST = new TypeToken<List<GitLabPipeline>>() { }.getType();
     private static final Type JOB_LIST = new TypeToken<List<GitLabJob>>() { }.getType();
+    private static final Type PROJECT_LIST = new TypeToken<List<GitLabProject>>() { }.getType();
 
     private final Gson gson = new GsonBuilder().create();
     private final String apiBase;
@@ -99,6 +100,29 @@ public class GitLabClient {
         String body = request("/projects/" + projectId + "/pipelines" + query(params));
         List<GitLabPipeline> pipelines = gson.fromJson(body, PIPELINE_LIST);
         return pipelines == null ? List.of() : pipelines;
+    }
+
+    /**
+     * Projects the token's own user is a member of, for populating the "watch" picker.
+     * Membership-scoped rather than every project the instance hosts, since an unfiltered search on
+     * a large self-hosted or gitlab.com instance would return results with no relevance to this user.
+     */
+    public List<GitLabProject> listProjects(String search, int perPage, int page)
+            throws IOException, InterruptedException {
+        List<Map.Entry<String, String>> params = new ArrayList<>();
+        params.add(Map.entry("membership", "true"));
+        params.add(Map.entry("simple", "true"));
+        params.add(Map.entry("order_by", "path"));
+        params.add(Map.entry("sort", "asc"));
+        params.add(Map.entry("per_page", String.valueOf(perPage)));
+        params.add(Map.entry("page", String.valueOf(page)));
+        if (search != null && !search.isBlank()) {
+            params.add(Map.entry("search", search));
+        }
+
+        String body = request("/projects" + query(params));
+        List<GitLabProject> projects = gson.fromJson(body, PROJECT_LIST);
+        return projects == null ? List.of() : projects;
     }
 
     /** Full pipeline, which unlike a list entry includes the triggering user. */

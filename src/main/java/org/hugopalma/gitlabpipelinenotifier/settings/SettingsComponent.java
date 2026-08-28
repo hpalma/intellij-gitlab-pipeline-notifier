@@ -1,6 +1,7 @@
 package org.hugopalma.gitlabpipelinenotifier.settings;
 
 import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.ui.Messages;
 import com.intellij.ui.ToolbarDecorator;
 import com.intellij.ui.components.*;
 import com.intellij.ui.table.JBTable;
@@ -13,13 +14,13 @@ import org.hugopalma.gitlabpipelinenotifier.gitlab.GitLabClient;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
+import java.util.TreeSet;
 import javax.swing.BoxLayout;
+import javax.swing.DefaultListModel;
 import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
-import javax.swing.JScrollPane;
 import javax.swing.SwingUtilities;
 import javax.swing.plaf.LabelUI;
 import javax.swing.table.AbstractTableModel;
@@ -35,7 +36,10 @@ public class SettingsComponent {
     private final JBLabel connectionResult = new JBLabel(" ");
     private final JBTextField pollInterval = new JBTextField();
     private final JBCheckBox watchGitRemotes = new JBCheckBox("Watch projects matching the git remotes of open projects");
-    private final JBTextArea extraProjects = new JBTextArea(4, 40);
+
+    private final List<String> extraProjectPaths = new ArrayList<>();
+    private final DefaultListModel<String> extraProjectsListModel = new DefaultListModel<>();
+    private final JBList<String> extraProjectsList = new JBList<>(extraProjectsListModel);
 
     private final JBCheckBox notifyOwnFailures = new JBCheckBox("Alert me when a pipeline I triggered fails with:");
     private final JBCheckBox ownStickyBalloon = new JBCheckBox("Sticky balloon and application icon badge");
@@ -51,8 +55,6 @@ public class SettingsComponent {
     private final JPanel mainPanel;
 
     public SettingsComponent() {
-        extraProjects.setLineWrap(false);
-
         JButton testConnection = new JButton("Test connection");
         testConnection.addActionListener(_ -> testConnection());
 
@@ -77,8 +79,14 @@ public class SettingsComponent {
                 .setRemoveAction(_ -> removeSelectedRule())
                 .createPanel();
 
-        JScrollPane extraProjectsScroll = new JBScrollPane(extraProjects);
-        extraProjectsScroll.setPreferredSize(new Dimension(JBUI.scale(520), JBUI.scale(80)));
+        extraProjectsList.setVisibleRowCount(4);
+        extraProjectsList.getEmptyText().setText("No extra projects selected");
+        JPanel extraProjectsPanel = ToolbarDecorator.createDecorator(extraProjectsList)
+                .setAddAction(_ -> browseForProjects())
+                .setRemoveAction(_ -> removeSelectedProjects())
+                .disableUpDownActions()
+                .createPanel();
+        extraProjectsPanel.setPreferredSize(new Dimension(JBUI.scale(520), JBUI.scale(100)));
 
         mainPanel = FormBuilder.createFormBuilder()
                 .addLabeledComponent("GitLab URL:", gitlabHost, 1, false)
@@ -96,8 +104,8 @@ public class SettingsComponent {
                 .addComponent(notifyOwnFailures)
                 .addComponent(ownChannels)
                 .addSeparator(UIUtil.LARGE_VGAP)
-                .addLabeledComponent("Also watch these projects:", extraProjectsScroll, 1, true)
-                .addComponent(new CommentLabel("One project path per line, e.g. group/subgroup/project"))
+                .addLabeledComponent("Also watch these projects:", extraProjectsPanel, 1, true)
+                .addComponent(new CommentLabel("Picked from the projects visible to your access token."))
                 .addSeparator(UIUtil.LARGE_VGAP)
                 .addLabeledComponent("Also alert me about:", rulesPanel, 1, true)
                 .addComponent(new CommentLabel(
@@ -144,6 +152,32 @@ public class SettingsComponent {
             boolean finalOk = ok;
             SwingUtilities.invokeLater(() -> showResult(finalMessage, finalOk));
         });
+    }
+
+    /** Opens the project picker and, on confirmation, replaces the extra-projects list with its result. */
+    private void browseForProjects() {
+        String host = gitlabHost.getText().trim();
+        String secret = new String(token.getPassword());
+
+        if (host.isEmpty() || secret.isEmpty()) {
+            Messages.showErrorDialog(mainPanel, "Enter a GitLab URL and an access token first.", "Add Projects");
+            return;
+        }
+
+        ProjectPickerDialog dialog = new ProjectPickerDialog(host, secret, getExtraProjectPaths());
+        if (dialog.showAndGet()) {
+            setExtraProjectPaths(dialog.getSelectedPaths());
+        }
+    }
+
+    private void removeSelectedProjects() {
+        extraProjectsList.getSelectedValuesList().forEach(extraProjectPaths::remove);
+        refreshExtraProjectsModel();
+    }
+
+    private void refreshExtraProjectsModel() {
+        extraProjectsListModel.clear();
+        extraProjectPaths.forEach(extraProjectsListModel::addElement);
     }
 
     private void showResult(String message, boolean ok) {
@@ -228,14 +262,15 @@ public class SettingsComponent {
     }
 
     public List<String> getExtraProjectPaths() {
-        return Arrays.stream(extraProjects.getText().split("\\R"))
-                .map(String::trim)
-                .filter(line -> !line.isEmpty())
-                .toList();
+        return new ArrayList<>(extraProjectPaths);
     }
 
     public void setExtraProjectPaths(List<String> value) {
-        extraProjects.setText(value == null ? "" : String.join("\n", value));
+        extraProjectPaths.clear();
+        if (value != null) {
+            extraProjectPaths.addAll(new TreeSet<>(value));
+        }
+        refreshExtraProjectsModel();
     }
 
     public boolean isNotifyOwnFailures() {
