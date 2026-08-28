@@ -40,7 +40,7 @@ dependencies {
     intellijPlatform {
         // IntelliJ IDEA Community (IC) is no longer published as a separate artifact from 253
         // onwards; `intellijIdea(...)` is the unified distribution that replaced it.
-        intellijIdeaUltimate(providers.gradleProperty("platformVersion"))
+        intellijIdea(providers.gradleProperty("platformVersion"))
 
         bundledPlugins(providers.gradleProperty("platformBundledPlugins").map { it.split(',') })
         // GitRepositoryManager extends AbstractRepositoryManager, which lives in the DVCS module
