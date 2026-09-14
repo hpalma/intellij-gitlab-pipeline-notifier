@@ -5,26 +5,6 @@
 
     <depends>com.intellij.modules.platform</depends>
 
-    <!--
-      As of 262, Git4Idea's own implementation is split across V2 content modules rather than
-      living entirely inside the Git4Idea plugin proper: GitRepository/GitRepositoryManager (used
-      by ProjectDiscovery) live in intellij.vcs.git.backend, GitRemote lives in
-      intellij.vcs.git.shared, and GitRepositoryManager's superclass AbstractRepositoryManager
-      lives in intellij.platform.vcs.dvcs.impl. Depending on the Git4Idea plugin id alone does not
-      grant classloader visibility into those modules, so without declaring them here the platform
-      fails to link GitRepositoryManager at runtime with
-      NoClassDefFoundError: git4idea/repo/GitRepositoryManager, even though it compiles fine
-      (build.gradle.kts adds the same modules to the compile classpath via bundledModules(...)).
-      This set mirrors what JetBrains' own bundled GitLab plugin (org.jetbrains.plugins.gitlab)
-      declares for the same GitRepositoryManager usage.
-    -->
-    <dependencies>
-        <plugin id="Git4Idea"/>
-        <module name="intellij.vcs.git.backend"/>
-        <module name="intellij.vcs.git.shared"/>
-        <module name="intellij.platform.vcs.dvcs.impl"/>
-    </dependencies>
-
     <extensions defaultExtensionNs="com.intellij">
         <!-- STICKY_BALLOON: the balloon stays up until the user dismisses it. -->
         <notificationGroup id="GitLab Pipeline Notifier"

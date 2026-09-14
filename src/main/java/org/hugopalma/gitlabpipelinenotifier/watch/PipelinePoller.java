@@ -133,7 +133,11 @@ public final class PipelinePoller implements Disposable {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return;
-        } catch (Exception e) {
+        } catch (Throwable e) {
+            // Deliberately Throwable, not just Exception: tick() self-reschedules only by reaching
+            // schedule(nextDelay) below, so any uncaught Error (e.g. NoClassDefFoundError from a
+            // platform module unavailable in this process) would otherwise silently and permanently
+            // stop the poller after a single tick, with no retry and no visible sign why.
             synchronized (this) {
                 backoffTicks = Math.min(backoffTicks + 1, MAX_BACKOFF_SHIFT);
                 nextDelay = intervalSeconds() << backoffTicks;

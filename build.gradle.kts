@@ -42,10 +42,6 @@ dependencies {
         // onwards; `intellijIdea(...)` is the unified distribution that replaced it.
         intellijIdea(providers.gradleProperty("platformVersion"))
 
-        bundledPlugins(providers.gradleProperty("platformBundledPlugins").map { it.split(',') })
-        // GitRepositoryManager extends AbstractRepositoryManager, which lives in the DVCS module
-        // rather than in Git4Idea itself, so it has to be requested explicitly.
-        bundledModules(providers.gradleProperty("platformBundledModules").map { it.split(',') })
         plugins(providers.gradleProperty("platformPlugins").map { it.split(',') })
 
         pluginVerifier()
