@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [1.0.0-beta.6] - 2026-09-15
+
 ### Added
 
 - Poll GitLab for failed pipelines in projects matched from the open project's git remotes, plus any
@@ -15,3 +17,6 @@
   and attention request, native system notification, and a blocking modal dialog.
 - Personal access token stored in the IDE password safe.
 - Setting to alert again when a retried pipeline fails again, instead of only once per pipeline.
+
+[Unreleased]: https://github.com/hpalma/gitlab-pipeline-notifier/compare/v1.0.0-beta.6...HEAD
+[1.0.0-beta.6]: https://github.com/hpalma/gitlab-pipeline-notifier/commits/v1.0.0-beta.6
