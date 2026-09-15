@@ -10,6 +10,7 @@ import com.intellij.util.ui.JBFont;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
 import org.hugopalma.gitlabpipelinenotifier.gitlab.GitLabClient;
+import org.hugopalma.gitlabpipelinenotifier.watch.ProjectDiscovery;
 
 import java.awt.BorderLayout;
 import java.awt.Dimension;
@@ -79,6 +80,11 @@ public class SettingsComponent {
                 .setRemoveAction(_ -> removeSelectedRule())
                 .createPanel();
 
+        boolean gitRemoteDiscoverySupported = ProjectDiscovery.isGitRemoteDiscoverySupported();
+        // Leave the persisted value untouched (it may still apply once this roams to a supported
+        // environment) - only interaction is blocked, since toggling it here could never do anything.
+        watchGitRemotes.setEnabled(gitRemoteDiscoverySupported);
+
         extraProjectsList.setVisibleRowCount(4);
         extraProjectsList.getEmptyText().setText("No extra projects selected");
         JPanel extraProjectsPanel = ToolbarDecorator.createDecorator(extraProjectsList)
@@ -88,7 +94,7 @@ public class SettingsComponent {
                 .createPanel();
         extraProjectsPanel.setPreferredSize(new Dimension(JBUI.scale(520), JBUI.scale(100)));
 
-        mainPanel = FormBuilder.createFormBuilder()
+        FormBuilder formBuilder = FormBuilder.createFormBuilder()
                 .addLabeledComponent("GitLab URL:", gitlabHost, 1, false)
                 .addComponent(new CommentLabel("Base URL of your GitLab instance, e.g. https://gitlab.com"))
                 .addLabeledComponent("Access token:", tokenRow, 1, false)
@@ -98,7 +104,15 @@ public class SettingsComponent {
                 .addLabeledComponent("Poll every (seconds):", pollInterval, 1, false)
                 .addComponent(new CommentLabel("Minimum " + Settings.MIN_POLL_SECONDS + " seconds."))
                 .addSeparator(UIUtil.LARGE_VGAP)
-                .addComponent(watchGitRemotes)
+                .addComponent(watchGitRemotes);
+
+        if (!gitRemoteDiscoverySupported) {
+            formBuilder.addComponent(new CommentLabel(
+                    "Not available in a client/server installation (e.g. Remote Development)."
+                            + " Use \"Also watch these projects\" below instead."));
+        }
+
+        mainPanel = formBuilder
                 .addComponent(alertOnRetries)
                 .addSeparator(UIUtil.LARGE_VGAP)
                 .addComponent(notifyOwnFailures)

@@ -5,12 +5,14 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.roots.ProjectRootManager;
 import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.platform.ide.productMode.IdeProductMode;
 import org.hugopalma.gitlabpipelinenotifier.settings.Settings;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Works out which GitLab projects to poll for a given IDE project: the ones its git remotes point
@@ -20,7 +22,27 @@ public final class ProjectDiscovery {
 
     private static final Logger LOG = Logger.getInstance(ProjectDiscovery.class);
 
+    /**
+     * Under JetBrains Remote Development (Coder, Gateway, Code With Me), this plugin's project-level
+     * services run inside the JetBrains Client frontend process - not the backend that actually has
+     * the checked-out repository. {@link ProjectRootManager}'s content roots there resolve to the
+     * frontend's own local filesystem, which has no {@code .git} at all, so git-remote discovery can
+     * never find anything and silently produces zero targets. Detected once per session so the
+     * warning below is not repeated on every poll tick.
+     */
+    private static final AtomicBoolean warnedAboutFrontendProcess = new AtomicBoolean();
+
     private ProjectDiscovery() {
+    }
+
+    /**
+     * Whether {@link #discover} can see the real repository checkout. False under a Remote
+     * Development frontend process; {@link org.hugopalma.gitlabpipelinenotifier.watch.PipelinePoller}
+     * uses this to surface a one-time, actionable notice rather than leaving the user to wonder why
+     * auto-discovered projects never show up.
+     */
+    public static boolean isGitRemoteDiscoverySupported() {
+        return !IdeProductMode.isFrontend();
     }
 
     public static Set<RemoteProject> discover(Project project, Settings.State settings) {
@@ -28,18 +50,24 @@ public final class ProjectDiscovery {
 
         String host = RemoteUrlParser.hostOf(settings.gitlabHost);
         if (host == null) {
-            LOG.warn("discover(" + project.getName() + "): no usable host in configured GitLab URL '"
+            LOG.debug("discover(" + project.getName() + "): no usable host in configured GitLab URL '"
                     + settings.gitlabHost + "', nothing to watch");
             return result;
         }
 
-        if (settings.watchGitRemotes) {
+        if (settings.watchGitRemotes && !isGitRemoteDiscoverySupported()) {
+            if (warnedAboutFrontendProcess.compareAndSet(false, true)) {
+                LOG.warn("Running inside a JetBrains Client / Remote Development frontend process; "
+                        + "git-remote discovery cannot see the backend's checkout and is disabled for this "
+                        + "session. List projects explicitly under 'Also watch these projects' instead.");
+            }
+        } else if (settings.watchGitRemotes) {
             Set<RemoteProject> fromRemotes = fromGitRemotes(project, host);
-            LOG.warn("discover(" + project.getName() + "): git-remote discovery against host '" + host
+            LOG.debug("discover(" + project.getName() + "): git-remote discovery against host '" + host
                     + "' found " + fromRemotes.size() + " project(s): " + fromRemotes);
             result.addAll(fromRemotes);
         } else {
-            LOG.warn("discover(" + project.getName() + "): watchGitRemotes is off, skipping git-remote discovery");
+            LOG.debug("discover(" + project.getName() + "): watchGitRemotes is off, skipping git-remote discovery");
         }
 
         for (String raw : settings.extraProjectPaths) {
@@ -58,7 +86,7 @@ public final class ProjectDiscovery {
             }
         }
 
-        LOG.warn("discover(" + project.getName() + "): watching " + result.size() + " project(s) total: " + result);
+        LOG.debug("discover(" + project.getName() + "): watching " + result.size() + " project(s) total: " + result);
         return result;
     }
 
@@ -74,16 +102,16 @@ public final class ProjectDiscovery {
         Set<RemoteProject> result = new LinkedHashSet<>();
         for (VirtualFile gitDir : findGitDirs(project)) {
             Set<String> urls = readRemoteUrls(gitDir);
-            LOG.warn("fromGitRemotes: " + gitDir.getPath() + " has remote URL(s): " + urls);
+            LOG.debug("fromGitRemotes: " + gitDir.getPath() + " has remote URL(s): " + urls);
             for (String url : urls) {
                 RemoteProject parsed = RemoteUrlParser.parse(url);
                 if (parsed == null) {
-                    LOG.warn("fromGitRemotes: could not parse remote URL '" + url + "' as a project path");
+                    LOG.debug("fromGitRemotes: could not parse remote URL '" + url + "' as a project path");
                     continue;
                 }
                 // Remotes pointing at GitHub, a mirror, or a second GitLab instance are not ours.
                 if (!parsed.host().equals(host)) {
-                    LOG.warn("fromGitRemotes: remote '" + url + "' resolved to host '" + parsed.host()
+                    LOG.debug("fromGitRemotes: remote '" + url + "' resolved to host '" + parsed.host()
                             + "', which does not match the configured host '" + host + "' - skipped");
                     continue;
                 }
@@ -96,16 +124,16 @@ public final class ProjectDiscovery {
     /** One entry per distinct git directory found under any content root of the project. */
     private static Set<VirtualFile> findGitDirs(Project project) {
         VirtualFile[] contentRoots = ProjectRootManager.getInstance(project).getContentRootsFromAllModules();
-        LOG.warn("findGitDirs(" + project.getName() + "): " + contentRoots.length + " content root(s): "
+        LOG.debug("findGitDirs(" + project.getName() + "): " + contentRoots.length + " content root(s): "
                 + Arrays.stream(contentRoots).map(VirtualFile::getPath).toList());
 
         Set<VirtualFile> result = new LinkedHashSet<>();
         for (VirtualFile root : contentRoots) {
             VirtualFile gitDir = resolveGitDir(root);
             if (gitDir == null) {
-                LOG.warn("findGitDirs: no .git found under content root " + root.getPath());
+                LOG.debug("findGitDirs: no .git found under content root " + root.getPath());
             } else {
-                LOG.warn("findGitDirs: content root " + root.getPath() + " -> git dir " + gitDir.getPath());
+                LOG.debug("findGitDirs: content root " + root.getPath() + " -> git dir " + gitDir.getPath());
                 result.add(gitDir);
             }
         }
@@ -130,14 +158,14 @@ public final class ProjectDiscovery {
                 VirtualFile resolved =
                         VfsUtilCore.findRelativeFile(content.substring("gitdir:".length()).trim(), contentRoot);
                 if (resolved == null) {
-                    LOG.warn("resolveGitDir: " + dotGit.getPath() + " points at '" + content
+                    LOG.debug("resolveGitDir: " + dotGit.getPath() + " points at '" + content
                             + "', which does not resolve to an existing file");
                 }
                 return resolved;
             }
-            LOG.warn("resolveGitDir: " + dotGit.getPath() + " is a file but not a 'gitdir:' pointer: " + content);
+            LOG.debug("resolveGitDir: " + dotGit.getPath() + " is a file but not a 'gitdir:' pointer: " + content);
         } catch (IOException e) {
-            LOG.warn("Could not read " + dotGit.getPath(), e);
+            LOG.debug("Could not read " + dotGit.getPath(), e);
         }
         return null;
     }
@@ -146,7 +174,7 @@ public final class ProjectDiscovery {
     private static Set<String> readRemoteUrls(VirtualFile gitDir) {
         VirtualFile config = gitDir.findChild("config");
         if (config == null) {
-            LOG.warn("readRemoteUrls: no 'config' file under " + gitDir.getPath());
+            LOG.debug("readRemoteUrls: no 'config' file under " + gitDir.getPath());
             return Set.of();
         }
 
@@ -167,7 +195,7 @@ public final class ProjectDiscovery {
                 }
             }
         } catch (IOException e) {
-            LOG.warn("Could not read " + config.getPath(), e);
+            LOG.debug("Could not read " + config.getPath(), e);
         }
         return urls;
     }
