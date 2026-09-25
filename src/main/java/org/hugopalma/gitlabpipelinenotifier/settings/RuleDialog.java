@@ -38,7 +38,6 @@ public class RuleDialog extends DialogWrapper {
     private final JBTextField refGlob = new JBTextField();
     private final Map<String, JBCheckBox> sourceBoxes = new LinkedHashMap<>();
     private final JBCheckBox stickyBalloon = new JBCheckBox("Sticky balloon and application icon badge");
-    private final JBCheckBox systemNotification = new JBCheckBox("System notification");
     private final JBCheckBox modalDialog = new JBCheckBox("Modal dialog");
 
     public RuleDialog(NotificationRule rule) {
@@ -50,7 +49,6 @@ public class RuleDialog extends DialogWrapper {
             sourceBoxes.put(entry.getKey(), new JBCheckBox(entry.getValue(), rule.sources.contains(entry.getKey())));
         }
         stickyBalloon.setSelected(rule.stickyBalloon);
-        systemNotification.setSelected(rule.systemNotification);
         modalDialog.setSelected(rule.modalDialog);
 
         setTitle("Pipeline Notification Rule");
@@ -77,9 +75,6 @@ public class RuleDialog extends DialogWrapper {
                         "Leave all unchecked to match any source."))
                 .addSeparator()
                 .addComponent(stickyBalloon)
-                .addComponent(systemNotification)
-                .addComponent(new SettingsComponent.CommentLabel(
-                        "Shown by the operating system when the IDE is not focused."))
                 .addComponent(modalDialog)
                 .addComponent(new SettingsComponent.CommentLabel(
                         "Blocks the IDE until dismissed."))
@@ -98,7 +93,7 @@ public class RuleDialog extends DialogWrapper {
                 return new ValidationInfo("Not a valid pattern: " + e.getMessage(), refGlob);
             }
         }
-        if (!stickyBalloon.isSelected() && !systemNotification.isSelected() && !modalDialog.isSelected()) {
+        if (!stickyBalloon.isSelected() && !modalDialog.isSelected()) {
             return new ValidationInfo("Pick at least one way to be alerted.", stickyBalloon);
         }
         return null;
@@ -118,7 +113,6 @@ public class RuleDialog extends DialogWrapper {
         target.sources = selected;
 
         target.stickyBalloon = stickyBalloon.isSelected();
-        target.systemNotification = systemNotification.isSelected();
         target.modalDialog = modalDialog.isSelected();
     }
 

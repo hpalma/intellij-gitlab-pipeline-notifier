@@ -51,7 +51,6 @@ public class SettingsConfigurable implements Configurable {
                 || !Objects.equals(component.getExtraProjectPaths(), state.extraProjectPaths)
                 || component.isNotifyOwnFailures() != state.notifyOwnFailures
                 || component.isOwnStickyBalloon() != state.ownStickyBalloon
-                || component.isOwnSystemNotification() != state.ownSystemNotification
                 || component.isOwnModalDialog() != state.ownModalDialog
                 || component.isAlertOnRetries() != state.alertOnRetries
                 || rulesModified(state.rules);
@@ -70,7 +69,6 @@ public class SettingsConfigurable implements Configurable {
                     || !Objects.equals(a.refGlob, b.refGlob)
                     || !Objects.equals(a.sources, b.sources)
                     || a.stickyBalloon != b.stickyBalloon
-                    || a.systemNotification != b.systemNotification
                     || a.modalDialog != b.modalDialog) {
                 return true;
             }
@@ -87,7 +85,6 @@ public class SettingsConfigurable implements Configurable {
         component.setExtraProjectPaths(state.extraProjectPaths);
         component.setNotifyOwnFailures(state.notifyOwnFailures);
         component.setOwnStickyBalloon(state.ownStickyBalloon);
-        component.setOwnSystemNotification(state.ownSystemNotification);
         component.setOwnModalDialog(state.ownModalDialog);
         component.setAlertOnRetries(state.alertOnRetries);
         component.setRules(state.rules);
@@ -130,7 +127,6 @@ public class SettingsConfigurable implements Configurable {
         state.extraProjectPaths = component.getExtraProjectPaths();
         state.notifyOwnFailures = component.isNotifyOwnFailures();
         state.ownStickyBalloon = component.isOwnStickyBalloon();
-        state.ownSystemNotification = component.isOwnSystemNotification();
         state.ownModalDialog = component.isOwnModalDialog();
         state.alertOnRetries = component.isAlertOnRetries();
         state.rules = component.getRules();

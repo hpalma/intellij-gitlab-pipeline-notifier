@@ -15,8 +15,6 @@ Each rule chooses how loud it gets:
 
 - **Sticky balloon** — an in-IDE error notification that stays until you dismiss it, plus a red badge
   and an attention request on the application icon (a Dock bounce on macOS).
-- **System notification** — a native OS notification, so you see it even when the IDE is in the
-  background. The platform suppresses this automatically while the IDE is focused.
 - **Modal dialog** — a blocking dialog brought to the front. Maximum visibility, maximum
   interruption; off by default for everything except your own failures.
 

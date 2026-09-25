@@ -11,7 +11,7 @@
 - Alert on pipelines triggered by the current user, resolved from the personal access token.
 - Configurable rules to alert on other failures, filtered by triggering user, branch/tag glob and
   pipeline source.
-- Three independently toggleable alert channels per rule: sticky balloon with application-icon badge
-  and attention request, native system notification, and a blocking modal dialog.
+- Two independently toggleable alert channels per rule: sticky balloon with application-icon badge
+  and attention request, and a blocking modal dialog.
 - Personal access token stored in the IDE password safe.
 - Setting to alert again when a retried pipeline fails again, instead of only once per pipeline.

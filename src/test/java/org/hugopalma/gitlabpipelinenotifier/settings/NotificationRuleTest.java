@@ -57,25 +57,23 @@ public class NotificationRuleTest {
     public void describesNoChannelsAsNone() {
         NotificationRule rule = new NotificationRule();
         rule.stickyBalloon = false;
-        rule.systemNotification = false;
         rule.modalDialog = false;
         assertEquals("none", rule.describeChannels());
     }
 
     @Test
     public void describesDefaultChannels() {
-        // Balloon and system notification are on by default; the modal dialog is opt-in.
+        // Balloon is on by default; the modal dialog is opt-in.
         NotificationRule rule = new NotificationRule();
-        assertEquals("Balloon, System", rule.describeChannels());
+        assertEquals("Balloon", rule.describeChannels());
     }
 
     @Test
     public void describesAllChannelsInOrder() {
         NotificationRule rule = new NotificationRule();
         rule.stickyBalloon = true;
-        rule.systemNotification = true;
         rule.modalDialog = true;
-        assertEquals("Balloon, System, Dialog", rule.describeChannels());
+        assertEquals("Balloon, Dialog", rule.describeChannels());
     }
 
     @Test
@@ -86,7 +84,6 @@ public class NotificationRuleTest {
         original.refGlob = "main";
         original.sources.add("push");
         original.stickyBalloon = false;
-        original.systemNotification = false;
         original.modalDialog = true;
 
         NotificationRule copy = new NotificationRule(original);

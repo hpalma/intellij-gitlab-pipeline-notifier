@@ -51,7 +51,6 @@ public final class Settings implements PersistentStateComponent<Settings.State> 
         /** Alert on pipelines triggered by the token's own user. */
         public boolean notifyOwnFailures = true;
         public boolean ownStickyBalloon = true;
-        public boolean ownSystemNotification = true;
         public boolean ownModalDialog = false;
 
         /** Additional rules for other people's failures. */

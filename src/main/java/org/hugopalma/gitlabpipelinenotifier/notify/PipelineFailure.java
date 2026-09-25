@@ -19,19 +19,6 @@ public record PipelineFailure(
                 : "Pipeline failed: " + remote.path();
     }
 
-    /** Single-line summary for the system notification, which renders no markup. */
-    public String plainSummary() {
-        StringBuilder sb = new StringBuilder(remote.path());
-        sb.append(" · ").append(pipeline.ref());
-        if (triggeredBy != null) {
-            sb.append(" · ").append(triggeredBy);
-        }
-        if (!failedJobs.isEmpty()) {
-            sb.append(" · ").append(String.join(", ", failedJobs));
-        }
-        return sb.toString();
-    }
-
     /** Notification balloons render a restricted subset of HTML. */
     public String htmlBody() {
         StringBuilder sb = new StringBuilder();

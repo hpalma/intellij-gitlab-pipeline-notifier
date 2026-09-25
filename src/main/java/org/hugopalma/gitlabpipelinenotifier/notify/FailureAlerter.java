@@ -9,7 +9,6 @@ import com.intellij.openapi.components.Service;
 import com.intellij.openapi.options.ShowSettingsUtil;
 import com.intellij.openapi.project.Project;
 import com.intellij.ui.AppIcon;
-import com.intellij.ui.SystemNotifications;
 import org.hugopalma.gitlabpipelinenotifier.settings.SettingsConfigurable;
 import org.hugopalma.gitlabpipelinenotifier.watch.AlertChannels;
 
@@ -18,13 +17,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Fans a failure out to the alert channels a rule asked for.
  *
- * <p>The three channels are complementary rather than redundant:
+ * <p>The two channels are complementary rather than redundant:
  * <ul>
  *   <li>the balloon is what you see when you are looking at the IDE;</li>
- *   <li>{@link SystemNotifications} no-ops while the IDE is focused and fires when it is not, so it
- *       covers the case where you have tabbed away;</li>
- *   <li>the application-icon badge persists after both have gone, so a failure that arrived while
- *       you were at lunch is still visible when you come back.</li>
+ *   <li>the application-icon badge persists after it has gone, so a failure that arrived while you
+ *       were at lunch is still visible when you come back.</li>
  * </ul>
  */
 @Service(Service.Level.PROJECT)
@@ -54,9 +51,6 @@ public final class FailureAlerter {
         if (channels.stickyBalloon()) {
             showBalloon(failure);
         }
-        if (channels.systemNotification()) {
-            showSystemNotification(failure);
-        }
 
         // The badge and attention request accompany any visual channel - they are the part that
         // survives the balloon being dismissed or the system notification being swiped away.
@@ -79,19 +73,6 @@ public final class FailureAlerter {
                 .addAction(NotificationAction.createSimple("Settings...", this::openSettings))
                 .whenExpired(this::clearAppIcon)
                 .notify(project);
-    }
-
-    private void showSystemNotification(PipelineFailure failure) {
-        // Suppressed by the platform while the IDE window is focused, and honours the user's
-        // "Enable system notifications" setting - so it is safe to call unconditionally.
-        SystemNotifications.getInstance().notify(
-                NOTIFICATION_GROUP,
-                failure.title(),
-                failure.plainSummary(),
-                () -> {
-                    BrowserUtil.browse(failure.pipeline().webUrl());
-                    clearAppIcon();
-                });
     }
 
     private void bumpAppIcon() {

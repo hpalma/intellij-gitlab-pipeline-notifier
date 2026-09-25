@@ -329,7 +329,6 @@ public final class PipelinePoller implements Disposable {
             own.enabled = true;
             own.username = me;
             own.stickyBalloon = settings.ownStickyBalloon;
-            own.systemNotification = settings.ownSystemNotification;
             own.modalDialog = settings.ownModalDialog;
             rules.add(own);
         }

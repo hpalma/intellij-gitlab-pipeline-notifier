@@ -44,7 +44,6 @@ public class SettingsComponent {
 
     private final JBCheckBox notifyOwnFailures = new JBCheckBox("Alert me when a pipeline I triggered fails with:");
     private final JBCheckBox ownStickyBalloon = new JBCheckBox("Sticky balloon and application icon badge");
-    private final JBCheckBox ownSystemNotification = new JBCheckBox("System notification");
     private final JBCheckBox ownModalDialog = new JBCheckBox("Modal dialog");
 
     private final JBCheckBox alertOnRetries = new JBCheckBox("Alert again when a retried pipeline fails");
@@ -69,7 +68,6 @@ public class SettingsComponent {
         ownChannels.setLayout(new BoxLayout(ownChannels, BoxLayout.Y_AXIS));
         ownChannels.setBorder(JBUI.Borders.emptyLeft(20));
         ownChannels.add(ownStickyBalloon);
-        ownChannels.add(ownSystemNotification);
         ownChannels.add(ownModalDialog);
 
         rulesTable.setPreferredScrollableViewportSize(new Dimension(JBUI.scale(520), JBUI.scale(120)));
@@ -131,7 +129,6 @@ public class SettingsComponent {
     private void updateOwnChannelsEnabled() {
         boolean enabled = notifyOwnFailures.isSelected();
         ownStickyBalloon.setEnabled(enabled);
-        ownSystemNotification.setEnabled(enabled);
         ownModalDialog.setEnabled(enabled);
     }
 
@@ -302,14 +299,6 @@ public class SettingsComponent {
 
     public void setOwnStickyBalloon(boolean value) {
         ownStickyBalloon.setSelected(value);
-    }
-
-    public boolean isOwnSystemNotification() {
-        return ownSystemNotification.isSelected();
-    }
-
-    public void setOwnSystemNotification(boolean value) {
-        ownSystemNotification.setSelected(value);
     }
 
     public boolean isOwnModalDialog() {

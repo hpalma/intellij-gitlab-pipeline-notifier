@@ -80,18 +80,15 @@ public class RuleMatcherTest {
     public void channelsFromMultipleMatchingRulesAreUnioned() {
         NotificationRule balloonOnly = rule(null, "main", null);
         balloonOnly.stickyBalloon = true;
-        balloonOnly.systemNotification = false;
         balloonOnly.modalDialog = false;
 
         NotificationRule dialogOnly = rule(null, "**", null);
         dialogOnly.stickyBalloon = false;
-        dialogOnly.systemNotification = false;
         dialogOnly.modalDialog = true;
 
         AlertChannels channels = RuleMatcher.match(pipeline("main", "push"), List.of(balloonOnly, dialogOnly));
         assertTrue(channels.stickyBalloon());
         assertTrue(channels.modalDialog());
-        assertFalse(channels.systemNotification());
     }
 
     @Test

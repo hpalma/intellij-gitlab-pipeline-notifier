@@ -24,7 +24,6 @@ public class NotificationRule {
     public List<String> sources = new ArrayList<>();
 
     public boolean stickyBalloon = true;
-    public boolean systemNotification = true;
     public boolean modalDialog = false;
 
     public NotificationRule() {
@@ -36,7 +35,6 @@ public class NotificationRule {
         this.refGlob = other.refGlob;
         this.sources = new ArrayList<>(other.sources);
         this.stickyBalloon = other.stickyBalloon;
-        this.systemNotification = other.systemNotification;
         this.modalDialog = other.modalDialog;
     }
 
@@ -60,9 +58,6 @@ public class NotificationRule {
         List<String> parts = new ArrayList<>();
         if (stickyBalloon) {
             parts.add("Balloon");
-        }
-        if (systemNotification) {
-            parts.add("System");
         }
         if (modalDialog) {
             parts.add("Dialog");
