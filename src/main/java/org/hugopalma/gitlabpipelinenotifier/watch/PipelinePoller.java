@@ -64,6 +64,13 @@ public final class PipelinePoller implements Disposable {
     private boolean stopped;
     private int backoffTicks;
 
+    /**
+     * Bumped on every {@link #stop()}. A tick that was already running when stop/restart happened
+     * carries the old value, so it can neither re-arm itself (which would leave two polling chains
+     * alive after a settings change) nor stop the freshly restarted poller on a stale auth failure.
+     */
+    private long generation;
+
     public PipelinePoller(Project project) {
         this.project = project;
     }
@@ -81,6 +88,7 @@ public final class PipelinePoller implements Disposable {
 
     public synchronized void stop() {
         stopped = true;
+        generation++;
         if (scheduled != null) {
             scheduled.cancel(false);
             scheduled = null;
@@ -104,14 +112,18 @@ public final class PipelinePoller implements Disposable {
     }
 
     private synchronized void schedule(long delaySeconds) {
-        if (stopped || project.isDisposed()) {
+        schedule(delaySeconds, generation);
+    }
+
+    private synchronized void schedule(long delaySeconds, long expectedGeneration) {
+        if (stopped || expectedGeneration != generation || project.isDisposed()) {
             return;
         }
         scheduled = AppExecutorUtil.getAppScheduledExecutorService()
-                .schedule(this::tick, delaySeconds, TimeUnit.SECONDS);
+                .schedule(() -> tick(expectedGeneration), delaySeconds, TimeUnit.SECONDS);
     }
 
-    private void tick() {
+    private void tick(long tickGeneration) {
         if (project.isDisposed()) {
             return;
         }
@@ -125,8 +137,13 @@ public final class PipelinePoller implements Disposable {
             nextDelay = intervalSeconds();
         } catch (GitLabAuthException e) {
             // A bad token will never fix itself; stop rather than hammering the instance.
-            LOG.warn("GitLab authentication failed, stopping poller", e);
-            stop();
+            synchronized (this) {
+                if (tickGeneration != generation) {
+                    return; // superseded by stop()/restart() while this tick was in flight
+                }
+                LOG.warn("GitLab authentication failed, stopping poller", e);
+                stop();
+            }
             FailureAlerter.getInstance(project).notifyPollingStopped(
                     e.getMessage() + " Polling is paused until you update the settings.");
             return;
@@ -145,7 +162,7 @@ public final class PipelinePoller implements Disposable {
             LOG.warn("GitLab poll failed, retrying in " + nextDelay + "s", e);
         }
 
-        schedule(nextDelay);
+        schedule(nextDelay, tickGeneration);
     }
 
     private static long intervalSeconds() {
