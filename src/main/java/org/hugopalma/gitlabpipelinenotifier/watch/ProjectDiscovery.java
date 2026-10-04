@@ -51,7 +51,7 @@ public final class ProjectDiscovery {
         String host = RemoteUrlParser.hostOf(settings.gitlabHost);
         if (host == null) {
             LOG.debug("discover(" + project.getName() + "): no usable host in configured GitLab URL '"
-                    + settings.gitlabHost + "', nothing to watch");
+                    + UrlSafety.redact(settings.gitlabHost) + "', nothing to watch");
             return result;
         }
 
@@ -102,16 +102,16 @@ public final class ProjectDiscovery {
         Set<RemoteProject> result = new LinkedHashSet<>();
         for (VirtualFile gitDir : findGitDirs(project)) {
             Set<String> urls = readRemoteUrls(gitDir);
-            LOG.debug("fromGitRemotes: " + gitDir.getPath() + " has remote URL(s): " + urls);
+            LOG.debug("fromGitRemotes: " + gitDir.getPath() + " has remote URL(s): " + UrlSafety.redact(urls.toString()));
             for (String url : urls) {
                 RemoteProject parsed = RemoteUrlParser.parse(url);
                 if (parsed == null) {
-                    LOG.debug("fromGitRemotes: could not parse remote URL '" + url + "' as a project path");
+                    LOG.debug("fromGitRemotes: could not parse remote URL '" + UrlSafety.redact(url) + "' as a project path");
                     continue;
                 }
                 // Remotes pointing at GitHub, a mirror, or a second GitLab instance are not ours.
                 if (!parsed.host().equals(host)) {
-                    LOG.debug("fromGitRemotes: remote '" + url + "' resolved to host '" + parsed.host()
+                    LOG.debug("fromGitRemotes: remote '" + UrlSafety.redact(url) + "' resolved to host '" + parsed.host()
                             + "', which does not match the configured host '" + host + "' - skipped");
                     continue;
                 }
@@ -158,12 +158,12 @@ public final class ProjectDiscovery {
                 VirtualFile resolved =
                         VfsUtilCore.findRelativeFile(content.substring("gitdir:".length()).trim(), contentRoot);
                 if (resolved == null) {
-                    LOG.debug("resolveGitDir: " + dotGit.getPath() + " points at '" + content
+                    LOG.debug("resolveGitDir: " + dotGit.getPath() + " points at '" + UrlSafety.redact(content)
                             + "', which does not resolve to an existing file");
                 }
                 return resolved;
             }
-            LOG.debug("resolveGitDir: " + dotGit.getPath() + " is a file but not a 'gitdir:' pointer: " + content);
+            LOG.debug("resolveGitDir: " + dotGit.getPath() + " is a file but not a 'gitdir:' pointer: " + UrlSafety.redact(content));
         } catch (IOException e) {
             LOG.debug("Could not read " + dotGit.getPath(), e);
         }

@@ -8,6 +8,7 @@ import org.hugopalma.gitlabpipelinenotifier.gitlab.model.GitLabJob;
 import org.hugopalma.gitlabpipelinenotifier.gitlab.model.GitLabPipeline;
 import org.hugopalma.gitlabpipelinenotifier.gitlab.model.GitLabProject;
 import org.hugopalma.gitlabpipelinenotifier.gitlab.model.GitLabUser;
+import org.hugopalma.gitlabpipelinenotifier.watch.UrlSafety;
 
 import java.io.IOException;
 import java.lang.reflect.Type;
@@ -51,7 +52,7 @@ public class GitLabClient {
     }
 
     public GitLabClient(String host, String token, HttpClient httpClient) {
-        this.apiBase = stripTrailingSlash(host) + "/api/v4";
+        this.apiBase = UrlSafety.normalizeBaseUrl(host) + "/api/v4";
         this.token = token;
         this.httpClient = httpClient;
     }
@@ -59,7 +60,9 @@ public class GitLabClient {
     public static HttpClient defaultHttpClient() {
         return HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
-                .followRedirects(HttpClient.Redirect.NORMAL)
+                // The PRIVATE-TOKEN header is re-sent on redirects, including cross-host ones, and the
+                // GitLab API never needs them.
+                .followRedirects(HttpClient.Redirect.NEVER)
                 .build();
     }
 
@@ -156,6 +159,10 @@ public class GitLabClient {
             throw new GitLabAuthException(
                     "GitLab rejected the token (HTTP " + status + "). Check that it is valid and has the read_api scope.");
         }
+        if (status >= 300 && status < 400) {
+            throw new GitLabHttpException(status, "GitLab redirected the request (HTTP " + status
+                    + "). Check that the GitLab URL in settings is correct and uses the right scheme.");
+        }
         if (status == 404) {
             throw new GitLabHttpException(status, "Not found: " + path);
         }
@@ -176,14 +183,6 @@ public class GitLabClient {
 
     private static String encode(String value) {
         return URLEncoder.encode(value, StandardCharsets.UTF_8);
-    }
-
-    private static String stripTrailingSlash(String value) {
-        String result = value == null ? "" : value.trim();
-        while (result.endsWith("/")) {
-            result = result.substring(0, result.length() - 1);
-        }
-        return result;
     }
 
     private static String truncate(String body) {
