@@ -1,5 +1,6 @@
 package org.hugopalma.gitlabpipelinenotifier.watch;
 
+import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.roots.ProjectRootManager;
@@ -123,7 +124,8 @@ public final class ProjectDiscovery {
 
     /** One entry per distinct git directory found under any content root of the project. */
     private static Set<VirtualFile> findGitDirs(Project project) {
-        VirtualFile[] contentRoots = ProjectRootManager.getInstance(project).getContentRootsFromAllModules();
+        VirtualFile[] contentRoots = ReadAction.compute(
+                () -> ProjectRootManager.getInstance(project).getContentRootsFromAllModules());
         LOG.debug("findGitDirs(" + project.getName() + "): " + contentRoots.length + " content root(s): "
                 + Arrays.stream(contentRoots).map(VirtualFile::getPath).toList());
 
