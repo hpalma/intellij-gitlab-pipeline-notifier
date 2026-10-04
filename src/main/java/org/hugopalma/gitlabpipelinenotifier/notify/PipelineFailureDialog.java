@@ -1,6 +1,5 @@
 package org.hugopalma.gitlabpipelinenotifier.notify;
 
-import com.intellij.ide.BrowserUtil;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.ui.components.ActionLink;
@@ -90,7 +89,7 @@ public class PipelineFailureDialog extends DialogWrapper {
         // The ActionLink constructors overload on ActionListener and AnAction, so an untyped
         // lambda is ambiguous; the cast picks the Swing one.
         ActionLink openLink = new ActionLink("Open in GitLab",
-                (ActionListener) _ -> BrowserUtil.browse(failure.pipeline().webUrl()));
+                (ActionListener) _ -> SafeBrowser.browse(failure.pipeline().webUrl()));
 
         FormBuilder builder = FormBuilder.createFormBuilder()
                 .addComponent(header)

@@ -1,6 +1,5 @@
 package org.hugopalma.gitlabpipelinenotifier.notify;
 
-import com.intellij.ide.BrowserUtil;
 import com.intellij.notification.NotificationAction;
 import com.intellij.notification.NotificationGroupManager;
 import com.intellij.notification.NotificationType;
@@ -73,7 +72,7 @@ public final class FailureAlerter {
                 .createNotification(failure.title(), failure.htmlBody(), NotificationType.ERROR)
                 .setImportant(true)
                 .addAction(NotificationAction.createSimple("Open in GitLab", () -> {
-                    BrowserUtil.browse(failure.pipeline().webUrl());
+                    SafeBrowser.browse(failure.pipeline().webUrl());
                     clearAppIcon();
                 }))
                 .addAction(NotificationAction.createSimple("Settings...", this::openSettings))
@@ -89,7 +88,7 @@ public final class FailureAlerter {
                 failure.title(),
                 failure.plainSummary(),
                 () -> {
-                    BrowserUtil.browse(failure.pipeline().webUrl());
+                    SafeBrowser.browse(failure.pipeline().webUrl());
                     clearAppIcon();
                 });
     }
