@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Small code improvements and security fixes.
+
 ## [1.0.0] - 2026-09-21
 
 ### Added
