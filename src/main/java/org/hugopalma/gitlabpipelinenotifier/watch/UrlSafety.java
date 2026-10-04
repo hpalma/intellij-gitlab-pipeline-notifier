@@ -1,5 +1,7 @@
 package org.hugopalma.gitlabpipelinenotifier.watch;
 
+import org.jspecify.annotations.NonNull;
+
 import java.net.URI;
 import java.util.Locale;
 
@@ -32,6 +34,14 @@ public final class UrlSafety {
         if (trimmed.isEmpty()) {
             throw new IllegalArgumentException("GitLab URL is empty");
         }
+        URI uri = getUri(trimmed);
+        if (uri.getRawUserInfo() != null || uri.getRawQuery() != null || uri.getRawFragment() != null) {
+            throw new IllegalArgumentException("GitLab URL must not contain credentials, a query or a fragment");
+        }
+        return trimmed.contains("://") ? trimmed : "https://" + trimmed;
+    }
+
+    private static @NonNull URI getUri(String trimmed) {
         URI uri;
         try {
             uri = new URI(trimmed.contains("://") ? trimmed : "https://" + trimmed);
@@ -45,10 +55,7 @@ public final class UrlSafety {
         if (uri.getHost() == null) {
             throw new IllegalArgumentException("GitLab URL has no host");
         }
-        if (uri.getRawUserInfo() != null || uri.getRawQuery() != null || uri.getRawFragment() != null) {
-            throw new IllegalArgumentException("GitLab URL must not contain credentials, a query or a fragment");
-        }
-        return trimmed.contains("://") ? trimmed : "https://" + trimmed;
+        return uri;
     }
 
     /**
