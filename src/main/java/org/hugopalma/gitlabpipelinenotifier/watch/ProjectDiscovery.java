@@ -178,24 +178,37 @@ public final class ProjectDiscovery {
             return Set.of();
         }
 
-        Set<String> urls = new LinkedHashSet<>();
         try {
-            boolean inRemoteSection = false;
-            for (String line : VfsUtilCore.loadText(config).split("\\R")) {
-                String trimmed = line.trim();
-                if (trimmed.startsWith("[")) {
-                    inRemoteSection = trimmed.startsWith("[remote ");
-                    continue;
-                }
-                if (inRemoteSection && trimmed.startsWith("url")) {
-                    int eq = trimmed.indexOf('=');
-                    if (eq > 0) {
-                        urls.add(trimmed.substring(eq + 1).trim());
-                    }
-                }
-            }
+            return parseRemoteUrls(VfsUtilCore.loadText(config));
         } catch (IOException e) {
             LOG.debug("Could not read " + config.getPath(), e);
+            return Set.of();
+        }
+    }
+
+    /**
+     * Extracts the {@code url} value of every {@code [remote "..."]} section. Only the exact key
+     * {@code url} counts: {@code pushurl} and unrelated keys that merely start with "url" do not.
+     */
+    static Set<String> parseRemoteUrls(String gitConfig) {
+        Set<String> urls = new LinkedHashSet<>();
+        boolean inRemoteSection = false;
+        for (String line : gitConfig.split("\\R")) {
+            String trimmed = line.trim();
+            if (trimmed.startsWith("[")) {
+                inRemoteSection = trimmed.regionMatches(true, 0, "[remote ", 0, "[remote ".length());
+                continue;
+            }
+            if (!inRemoteSection) {
+                continue;
+            }
+            int eq = trimmed.indexOf('=');
+            if (eq > 0 && trimmed.substring(0, eq).trim().equalsIgnoreCase("url")) {
+                String value = trimmed.substring(eq + 1).trim();
+                if (!value.isEmpty()) {
+                    urls.add(value);
+                }
+            }
         }
         return urls;
     }

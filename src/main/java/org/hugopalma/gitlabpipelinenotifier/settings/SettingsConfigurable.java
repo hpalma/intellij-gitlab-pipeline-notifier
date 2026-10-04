@@ -136,6 +136,7 @@ public class SettingsConfigurable implements Configurable {
         state.rules = component.getRules();
 
         String token = component.getToken();
+        boolean tokenChanged = !token.equals(loadedToken);
         loadedToken = token;
         loadedTokenHost = newHost;
         ApplicationManager.getApplication().executeOnPooledThread(() -> TokenStore.set(newHost, token));
@@ -144,6 +145,10 @@ public class SettingsConfigurable implements Configurable {
         // them across a host change would silently suppress the first alerts from the new one.
         if (!previousHost.equals(newHost)) {
             NotifierState.getInstance().reset();
+        } else if (tokenChanged) {
+            // A different token may belong to a different user; the cached username would make
+            // "my failures" silently track the previous account.
+            NotifierState.getInstance().setResolvedUsername(null);
         }
 
         for (Project project : ProjectManager.getInstance().getOpenProjects()) {
