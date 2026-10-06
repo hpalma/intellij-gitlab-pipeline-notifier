@@ -30,7 +30,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public final class FailureAlerter {
 
     /** Must match the {@code notificationGroup} id registered in plugin.xml. */
-    public static final String NOTIFICATION_GROUP = "GitLab Pipeline Notifier";
+    public static final String NOTIFICATION_GROUP = "Pipeline Notifier";
 
     private final Project project;
     private final AtomicInteger outstanding = new AtomicInteger();

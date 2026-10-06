@@ -24,7 +24,7 @@ import java.util.Map;
  */
 @Service
 @State(
-        name = "org.hugopalma.gitlabpipelinenotifier.settings.NotifierState",
+        name = "org.hugopalma.pipelinenotifier.settings.NotifierState",
         storages = @Storage(value = "GitLabPipelineNotifierState.xml", roamingType = RoamingType.DISABLED)
 )
 public final class NotifierState implements PersistentStateComponent<NotifierState.State> {

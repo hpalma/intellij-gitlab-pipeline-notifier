@@ -14,7 +14,7 @@ import org.hugopalma.pipelinenotifier.gitlab.GitLabProvider;
  */
 public final class TokenStore {
 
-    private static final String SUBSYSTEM = "GitLab Pipeline Notifier";
+    private static final String SUBSYSTEM = "Pipeline Notifier";
     private static final String USER = "token";
 
     private TokenStore() {

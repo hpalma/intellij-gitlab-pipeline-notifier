@@ -1,4 +1,4 @@
-# GitLab Pipeline Notifier
+# Pipeline Notifier
 
 An IntelliJ Platform plugin that watches your GitLab pipelines and makes damn sure you notice when
 one fails.
@@ -22,7 +22,7 @@ Each rule chooses how loud it gets:
 - **Modal dialog** — a blocking dialog brought to the front. Maximum visibility, maximum
   interruption; off by default for everything except your own failures.
 
-Configure it under **Settings | Tools | GitLab Pipeline Notifier**, one tab per service. Tokens are
+Configure it under **Settings | Tools | Pipeline Notifier**, one tab per service. Tokens are
 stored in the IDE's password safe (macOS Keychain, Windows Credential Store, or libsecret), never in
 plain-text settings. Self-hosted GitLab and GitHub Enterprise Server are supported.
 <!-- Plugin description end -->
@@ -33,7 +33,7 @@ plain-text settings. Self-hosted GitLab and GitHub Enterprise Server are support
    - **GitLab**: a personal access token with the `read_api` scope.
    - **GitHub**: a fine-grained personal access token with read access to *Actions* on the
      repositories to watch, or a classic token with the `repo` scope.
-2. **Settings | Tools | GitLab Pipeline Notifier** — in the service's tab, set the server URL and
+2. **Settings | Tools | Pipeline Notifier** — in the service's tab, set the server URL and
    paste the token, then hit **Test connection** to confirm it resolves your username.
 3. Optionally add extra projects and notification rules.
 

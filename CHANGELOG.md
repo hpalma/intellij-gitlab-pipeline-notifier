@@ -1,6 +1,6 @@
 <!-- Keep a Changelog guide -> https://keepachangelog.com -->
 
-# GitLab Pipeline Notifier Changelog
+# Pipeline Notifier Changelog
 
 ## [Unreleased]
 

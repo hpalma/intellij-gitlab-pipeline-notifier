@@ -136,6 +136,6 @@ public class PipelineFailureDialog extends DialogWrapper {
 
     @Override
     protected @Nullable String getDimensionServiceKey() {
-        return "org.hugopalma.gitlabpipelinenotifier.FailureDialog";
+        return "org.hugopalma.pipelinenotifier.FailureDialog";
     }
 }

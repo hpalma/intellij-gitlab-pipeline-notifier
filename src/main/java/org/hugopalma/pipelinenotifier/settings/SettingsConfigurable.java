@@ -34,7 +34,7 @@ public class SettingsConfigurable implements Configurable {
 
     @Override
     public @Nls String getDisplayName() {
-        return "GitLab Pipeline Notifier";
+        return "Pipeline Notifier";
     }
 
     @Override

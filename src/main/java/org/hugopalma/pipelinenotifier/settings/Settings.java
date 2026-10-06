@@ -24,7 +24,7 @@ import java.util.List;
  */
 @Service
 @State(
-        name = "org.hugopalma.gitlabpipelinenotifier.settings.Settings",
+        name = "org.hugopalma.pipelinenotifier.settings.Settings",
         storages = @Storage(value = "GitLabPipelineNotifier.xml", roamingType = RoamingType.DEFAULT),
         category = SettingsCategory.PLUGINS
 )
