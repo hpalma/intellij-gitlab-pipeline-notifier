@@ -4,6 +4,21 @@
 
 ## [Unreleased]
 
+### Added
+
+- GitHub Actions support: failed workflow runs are watched alongside GitLab pipelines, on github.com
+  or GitHub Enterprise Server. Each service has its own tab in settings, with its own URL, token and
+  extra projects.
+- Notification rules now belong to a service (GitLab or GitHub), so each offers its own pipeline sources.
+
+### Changed
+
+- Internals are split into a provider-neutral core and one adapter per CI service, so further
+  services can be added without touching polling, matching or alerting.
+- Existing GitLab settings, rules and stored tokens carry over unchanged. Alert bookkeeping is keyed
+  per service, so on first start after upgrading, failures that happened before then are not
+  replayed.
+
 ## [1.0.1] - 2026-10-04
 
 ### Fixed
@@ -24,6 +39,5 @@
 - Personal access token stored in the IDE password safe.
 - Setting to alert again when a retried pipeline fails again, instead of only once per pipeline.
 
-[Unreleased]: https://github.com/hpalma/gitlab-pipeline-notifier/compare/v1.0.1...HEAD
 [1.0.1]: https://github.com/hpalma/gitlab-pipeline-notifier/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/hpalma/gitlab-pipeline-notifier/commits/v1.0.0

@@ -1,0 +1,291 @@
+package org.hugopalma.pipelinenotifier.settings;
+
+import com.intellij.ui.ToolbarDecorator;
+import com.intellij.ui.components.*;
+import com.intellij.ui.table.JBTable;
+import com.intellij.util.ui.FormBuilder;
+import com.intellij.util.ui.JBFont;
+import com.intellij.util.ui.JBUI;
+import com.intellij.util.ui.UIUtil;
+import org.hugopalma.pipelinenotifier.provider.CiProvider;
+import org.hugopalma.pipelinenotifier.provider.CiProviders;
+import org.hugopalma.pipelinenotifier.watch.ProjectDiscovery;
+
+import java.awt.Dimension;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import javax.swing.BoxLayout;
+import javax.swing.JComponent;
+import javax.swing.JPanel;
+import javax.swing.plaf.LabelUI;
+import javax.swing.table.AbstractTableModel;
+
+/**
+ * The settings form. Plain Swing with {@link FormBuilder}, one {@link ConnectionPanel} tab per provider,
+ * and a {@link ToolbarDecorator} table for the rules - the Kotlin UI DSL is not usable from Java.
+ */
+public class SettingsComponent {
+
+    private final Map<String, ConnectionPanel> connections = new LinkedHashMap<>();
+    private final JBTextField pollInterval = new JBTextField();
+    private final JBCheckBox watchGitRemotes = new JBCheckBox("Watch projects matching the git remotes of open projects");
+
+    private final JBCheckBox notifyOwnFailures = new JBCheckBox("Alert me when a pipeline I triggered fails with:");
+    private final JBCheckBox ownStickyBalloon = new JBCheckBox("Sticky balloon and application icon badge");
+    private final JBCheckBox ownSystemNotification = new JBCheckBox("System notification");
+    private final JBCheckBox ownModalDialog = new JBCheckBox("Modal dialog");
+
+    private final JBCheckBox alertOnRetries = new JBCheckBox("Alert again when a retried pipeline fails");
+
+    private final List<NotificationRule> rules = new ArrayList<>();
+    private final RulesTableModel rulesModel = new RulesTableModel();
+    private final JBTable rulesTable = new JBTable(rulesModel);
+
+    private final JPanel mainPanel;
+
+    public SettingsComponent() {
+        JBTabbedPane connectionTabs = new JBTabbedPane();
+        for (CiProvider provider : CiProviders.all()) {
+            ConnectionPanel connection = new ConnectionPanel(provider);
+            connections.put(provider.id(), connection);
+            connectionTabs.addTab(provider.displayName(), connection.getPanel());
+        }
+
+        notifyOwnFailures.addChangeListener(_ -> updateOwnChannelsEnabled());
+
+        JPanel ownChannels = new JPanel();
+        ownChannels.setLayout(new BoxLayout(ownChannels, BoxLayout.Y_AXIS));
+        ownChannels.setBorder(JBUI.Borders.emptyLeft(20));
+        ownChannels.add(ownStickyBalloon);
+        ownChannels.add(ownSystemNotification);
+        ownChannels.add(ownModalDialog);
+
+        rulesTable.setPreferredScrollableViewportSize(new Dimension(JBUI.scale(520), JBUI.scale(120)));
+        rulesTable.getColumnModel().getColumn(0).setMaxWidth(JBUI.scale(60));
+        rulesTable.getColumnModel().getColumn(1).setMaxWidth(JBUI.scale(90));
+        JPanel rulesPanel = ToolbarDecorator.createDecorator(rulesTable)
+                .setAddAction(_ -> editRule(null))
+                .setEditAction(_ -> editRule(selectedRule()))
+                .setRemoveAction(_ -> removeSelectedRule())
+                .createPanel();
+
+        boolean gitRemoteDiscoverySupported = ProjectDiscovery.isGitRemoteDiscoverySupported();
+        // Leave the persisted value untouched (it may still apply once this roams to a supported
+        // environment) - only interaction is blocked, since toggling it here could never do anything.
+        watchGitRemotes.setEnabled(gitRemoteDiscoverySupported);
+
+        FormBuilder formBuilder = FormBuilder.createFormBuilder()
+                .addComponent(connectionTabs)
+                .addLabeledComponent("Poll every (seconds):", pollInterval, 1, false)
+                .addComponent(new CommentLabel("Minimum " + Settings.MIN_POLL_SECONDS + " seconds."))
+                .addSeparator(UIUtil.LARGE_VGAP)
+                .addComponent(watchGitRemotes);
+
+        if (!gitRemoteDiscoverySupported) {
+            formBuilder.addComponent(new CommentLabel(
+                    "Not available in a client/server installation (e.g. Remote Development)."
+                            + " Use \"Also watch these projects\" in a server's tab instead."));
+        }
+
+        mainPanel = formBuilder
+                .addComponent(alertOnRetries)
+                .addSeparator(UIUtil.LARGE_VGAP)
+                .addComponent(notifyOwnFailures)
+                .addComponent(ownChannels)
+                .addSeparator(UIUtil.LARGE_VGAP)
+                .addLabeledComponent("Also alert me about:", rulesPanel, 1, true)
+                .addComponent(new CommentLabel(
+                        "Rules for other people's pipelines. Each rule picks its own alert channels."))
+                .addComponentFillVertically(new JPanel(), 0)
+                .getPanel();
+    }
+
+    private void updateOwnChannelsEnabled() {
+        boolean enabled = notifyOwnFailures.isSelected();
+        ownStickyBalloon.setEnabled(enabled);
+        ownSystemNotification.setEnabled(enabled);
+        ownModalDialog.setEnabled(enabled);
+    }
+
+    private NotificationRule selectedRule() {
+        int row = rulesTable.getSelectedRow();
+        return row < 0 ? null : rules.get(rulesTable.convertRowIndexToModel(row));
+    }
+
+    private void editRule(NotificationRule existing) {
+        NotificationRule working = existing == null ? new NotificationRule() : new NotificationRule(existing);
+        RuleDialog dialog = new RuleDialog(working);
+        if (!dialog.showAndGet()) {
+            return;
+        }
+        dialog.applyTo(working);
+
+        if (existing == null) {
+            rules.add(working);
+        } else {
+            rules.set(rules.indexOf(existing), working);
+        }
+        rulesModel.fireTableDataChanged();
+    }
+
+    private void removeSelectedRule() {
+        NotificationRule selected = selectedRule();
+        if (selected != null) {
+            rules.remove(selected);
+            rulesModel.fireTableDataChanged();
+        }
+    }
+
+    public JPanel getPanel() {
+        return mainPanel;
+    }
+
+    public JComponent getPreferredFocusedComponent() {
+        return connections.values().iterator().next().hostField();
+    }
+
+    /** The panel for {@code providerId}; every registered provider has one. */
+    ConnectionPanel connection(String providerId) {
+        return connections.get(providerId);
+    }
+
+    /** Falls back to the default rather than rejecting input, so a stray keystroke cannot block Apply. */
+    public int getPollIntervalSeconds() {
+        try {
+            return Math.max(Integer.parseInt(pollInterval.getText().trim()), Settings.MIN_POLL_SECONDS);
+        } catch (NumberFormatException e) {
+            return Settings.DEFAULT_POLL_SECONDS;
+        }
+    }
+
+    public void setPollIntervalSeconds(int value) {
+        pollInterval.setText(String.valueOf(value));
+    }
+
+    public boolean isWatchGitRemotes() {
+        return watchGitRemotes.isSelected();
+    }
+
+    public void setWatchGitRemotes(boolean value) {
+        watchGitRemotes.setSelected(value);
+    }
+
+    public boolean isNotifyOwnFailures() {
+        return notifyOwnFailures.isSelected();
+    }
+
+    public void setNotifyOwnFailures(boolean value) {
+        notifyOwnFailures.setSelected(value);
+        updateOwnChannelsEnabled();
+    }
+
+    public boolean isOwnStickyBalloon() {
+        return ownStickyBalloon.isSelected();
+    }
+
+    public void setOwnStickyBalloon(boolean value) {
+        ownStickyBalloon.setSelected(value);
+    }
+
+    public boolean isOwnSystemNotification() {
+        return ownSystemNotification.isSelected();
+    }
+
+    public void setOwnSystemNotification(boolean value) {
+        ownSystemNotification.setSelected(value);
+    }
+
+    public boolean isOwnModalDialog() {
+        return ownModalDialog.isSelected();
+    }
+
+    public void setOwnModalDialog(boolean value) {
+        ownModalDialog.setSelected(value);
+    }
+
+    public boolean isAlertOnRetries() {
+        return alertOnRetries.isSelected();
+    }
+
+    public void setAlertOnRetries(boolean value) {
+        alertOnRetries.setSelected(value);
+    }
+
+    public List<NotificationRule> getRules() {
+        return new ArrayList<>(rules);
+    }
+
+    public void setRules(List<NotificationRule> value) {
+        rules.clear();
+        if (value != null) {
+            value.forEach(rule -> rules.add(new NotificationRule(rule)));
+        }
+        rulesModel.fireTableDataChanged();
+    }
+
+    private class RulesTableModel extends AbstractTableModel {
+
+        private final String[] columns = {"On", "Service", "Matches", "Alerts"};
+
+        @Override
+        public int getRowCount() {
+            return rules.size();
+        }
+
+        @Override
+        public int getColumnCount() {
+            return columns.length;
+        }
+
+        @Override
+        public String getColumnName(int column) {
+            return columns[column];
+        }
+
+        @Override
+        public Class<?> getColumnClass(int column) {
+            return column == 0 ? Boolean.class : String.class;
+        }
+
+        @Override
+        public boolean isCellEditable(int row, int column) {
+            return column == 0;
+        }
+
+        @Override
+        public Object getValueAt(int row, int column) {
+            NotificationRule rule = rules.get(row);
+            return switch (column) {
+                case 0 -> rule.enabled;
+                case 1 -> CiProviders.displayName(rule.provider);
+                case 2 -> rule.describe();
+                default -> rule.describeChannels();
+            };
+        }
+
+        @Override
+        public void setValueAt(Object value, int row, int column) {
+            if (column == 0 && value instanceof Boolean enabled) {
+                rules.get(row).enabled = enabled;
+                fireTableRowsUpdated(row, row);
+            }
+        }
+    }
+
+    /** Small muted label used for the explanatory text under each field. */
+    public static class CommentLabel extends JBLabel {
+
+        public CommentLabel(String text) {
+            super(text);
+            setForeground(JBUI.CurrentTheme.ContextHelp.FOREGROUND);
+        }
+
+        @Override
+        public void setUI(LabelUI ui) {
+            super.setUI(ui);
+            setFont(JBFont.medium());
+        }
+    }
+}

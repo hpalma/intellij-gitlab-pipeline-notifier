@@ -4,12 +4,14 @@ An IntelliJ Platform plugin that watches your GitLab pipelines and makes damn su
 one fails.
 
 <!-- Plugin description -->
-Watches GitLab CI pipelines over the GitLab REST API and raises a hard-to-miss alerts when one fails.
+Watches GitLab CI pipelines and GitHub Actions workflow runs over their REST APIs and raises
+hard-to-miss alerts when one fails.
 
-By default it alerts on pipelines **you** triggered in the GitLab projects matching the git remotes
-of the projects you have open. You can also add extra projects to watch, and define rules to be
+By default it alerts on pipelines **you** triggered in the GitLab and GitHub projects matching the
+git remotes of the projects you have open. You can also add extra projects to watch, and define rules to be
 alerted about other people's failures — filtered by triggering user, branch/tag glob, and pipeline
-source (push, merge request, schedule, web, trigger, api).
+source (push, merge request, schedule, manual, API...). Rules belong to one service, since each has
+its own set of sources.
 
 Each rule chooses how loud it gets:
 
@@ -20,17 +22,28 @@ Each rule chooses how loud it gets:
 - **Modal dialog** — a blocking dialog brought to the front. Maximum visibility, maximum
   interruption; off by default for everything except your own failures.
 
-Configure it under **Settings | Tools | GitLab Pipeline Notifier**. You need a GitLab personal access
-token with the `read_api` scope; it is stored in the IDE's password safe (macOS Keychain, Windows
-Credential Store, or libsecret), never in plain-text settings.
+Configure it under **Settings | Tools | GitLab Pipeline Notifier**, one tab per service. Tokens are
+stored in the IDE's password safe (macOS Keychain, Windows Credential Store, or libsecret), never in
+plain-text settings. Self-hosted GitLab and GitHub Enterprise Server are supported.
 <!-- Plugin description end -->
 
 ## Configuration
 
-1. Create a GitLab personal access token with the `read_api` scope.
-2. **Settings | Tools | GitLab Pipeline Notifier** — set your GitLab host and paste the token, then
-   hit **Test connection** to confirm it resolves your username.
+1. Create an access token for each service you use:
+   - **GitLab**: a personal access token with the `read_api` scope.
+   - **GitHub**: a fine-grained personal access token with read access to *Actions* on the
+     repositories to watch, or a classic token with the `repo` scope.
+2. **Settings | Tools | GitLab Pipeline Notifier** — in the service's tab, set the server URL and
+   paste the token, then hit **Test connection** to confirm it resolves your username.
 3. Optionally add extra projects and notification rules.
+
+## Adding another CI service
+
+Everything outside the service's own package works on a provider-neutral `PipelineRun`. To add one,
+implement `CiProvider` (name, default host, token help, rule sources) and `CiClient` (current user,
+failed runs, run detail, failed jobs, project listing) under `org.hugopalma.gitlabpipelinenotifier`,
+then add it to `CiProviders`. Settings tabs, rules, polling, dedupe and alerts pick it up from there.
+See the `gitlab` and `github` packages for examples.
 
 ## Building
 
