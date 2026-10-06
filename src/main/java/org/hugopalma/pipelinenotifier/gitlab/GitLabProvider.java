@@ -8,7 +8,7 @@ import java.util.Map;
 
 public final class GitLabProvider implements CiProvider {
 
-    /** Also the default for rules saved before there were other providers. */
+    /** Also the default provider for a new rule. */
     public static final String ID = "gitlab";
 
     private static final Map<String, String> SOURCES = new LinkedHashMap<>();

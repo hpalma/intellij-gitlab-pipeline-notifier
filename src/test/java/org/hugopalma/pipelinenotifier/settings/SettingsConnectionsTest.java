@@ -10,37 +10,28 @@ import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 
-/** Upgrade behaviour: settings written before connections existed must keep working. */
+/** Per-provider connection lookup and defaults. */
 public class SettingsConnectionsTest {
 
     private static final CiProvider GITLAB = CiProviders.find(GitLabProvider.ID);
     private static final CiProvider GITHUB = CiProviders.find(GitHubProvider.ID);
 
     @Test
-    @SuppressWarnings("deprecation")
-    public void legacyGitlabSettingsSeedTheGitlabConnection() {
+    public void unsavedProvidersGetTheirDefaults() {
         Settings.State state = new Settings.State();
-        state.gitlabHost = "https://git.example.com";
-        state.extraProjectPaths = List.of("g/p");
 
-        Settings.Connection gitlab = state.connectionFor(GITLAB);
-
-        assertEquals("https://git.example.com", gitlab.host);
-        assertEquals(List.of("g/p"), gitlab.extraProjectPaths);
-        // Other providers start from their own defaults, never from GitLab's settings.
+        assertEquals("https://gitlab.com", state.connectionFor(GITLAB).host);
         assertEquals("https://github.com", state.connectionFor(GITHUB).host);
         assertEquals(List.of(), state.connectionFor(GITHUB).extraProjectPaths);
     }
 
     @Test
-    @SuppressWarnings("deprecation")
-    public void savedConnectionsWinOverLegacyFields() {
+    public void savedConnectionWinsOverDefault() {
         Settings.State state = new Settings.State();
-        state.gitlabHost = "https://old.example.com";
-        state.connections.add(new Settings.Connection(GitLabProvider.ID, "https://new.example.com", List.of()));
+        state.connections.add(new Settings.Connection(GitLabProvider.ID, "https://git.example.com", List.of("g/p")));
 
-        assertEquals("https://new.example.com", state.connectionFor(GITLAB).host);
-        // GitLab was saved, but GitHub never was: it must not inherit GitLab's legacy host either.
+        assertEquals("https://git.example.com", state.connectionFor(GITLAB).host);
+        assertEquals(List.of("g/p"), state.connectionFor(GITLAB).extraProjectPaths);
         assertEquals("https://github.com", state.connectionFor(GITHUB).host);
     }
 
@@ -54,7 +45,7 @@ public class SettingsConnectionsTest {
     }
 
     @Test
-    public void ruleSavedBeforeProvidersExistedBelongsToGitlab() {
+    public void newRulesDefaultToGitlab() {
         assertEquals(GitLabProvider.ID, new NotificationRule().provider);
     }
 }

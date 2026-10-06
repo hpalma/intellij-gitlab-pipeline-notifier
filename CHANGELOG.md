@@ -15,9 +15,6 @@
 
 - Internals are split into a provider-neutral core and one adapter per CI service, so further
   services can be added without touching polling, matching or alerting.
-- Existing GitLab settings, rules and stored tokens carry over unchanged. Alert bookkeeping is keyed
-  per service, so on first start after upgrading, failures that happened before then are not
-  replayed.
 
 ## [1.0.1] - 2026-10-04
 

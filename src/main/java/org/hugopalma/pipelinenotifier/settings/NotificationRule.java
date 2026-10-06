@@ -20,8 +20,7 @@ public class NotificationRule {
     public boolean enabled = true;
 
     /**
-     * {@link org.hugopalma.pipelinenotifier.provider.CiProvider#id()}. Defaults to GitLab so
-     * rules saved before there were other providers keep meaning what they did.
+     * {@link org.hugopalma.pipelinenotifier.provider.CiProvider#id()}. Defaults to GitLab.
      */
     public String provider = GitLabProvider.ID;
     public String username;

@@ -9,7 +9,6 @@ import com.intellij.openapi.components.State;
 import com.intellij.openapi.components.Storage;
 import com.intellij.util.xmlb.XmlSerializerUtil;
 import com.intellij.util.xmlb.annotations.XCollection;
-import org.hugopalma.pipelinenotifier.gitlab.GitLabProvider;
 import org.hugopalma.pipelinenotifier.provider.CiProvider;
 import org.hugopalma.pipelinenotifier.provider.CiProviders;
 import org.jetbrains.annotations.NotNull;
@@ -30,7 +29,6 @@ import java.util.List;
 )
 public final class Settings implements PersistentStateComponent<Settings.State> {
 
-    public static final String DEFAULT_HOST = "https://gitlab.com";
     public static final int DEFAULT_POLL_SECONDS = 60;
     public static final int MIN_POLL_SECONDS = 15;
 
@@ -48,6 +46,7 @@ public final class Settings implements PersistentStateComponent<Settings.State> 
         @XCollection(elementName = "path")
         public List<String> extraProjectPaths = new ArrayList<>();
 
+        @SuppressWarnings("unused")
         public Connection() {
         }
 
@@ -56,33 +55,20 @@ public final class Settings implements PersistentStateComponent<Settings.State> 
             this.host = host;
             this.extraProjectPaths = new ArrayList<>(extraProjectPaths);
         }
-
-        public Connection(Connection other) {
-            this(other.provider, other.host, other.extraProjectPaths);
-        }
     }
 
     public static class State {
         /**
-         * One entry per provider the user has opened settings for. Empty until then; read it through
-         * {@link #connections()}, which also covers settings saved before there were other providers.
+         * One entry per provider the user has saved settings for. Empty until then; read it through
+         * {@link #connections()} / {@link #connectionFor}, which fill in defaults.
          */
         @XCollection(elementName = "connection")
         public List<Connection> connections = new ArrayList<>();
 
-        /** @deprecated GitLab-only setting from before {@link #connections}; only read as a fallback. */
-        @Deprecated
-        public String gitlabHost = DEFAULT_HOST;
-
-        /** @deprecated see {@link #gitlabHost}. */
-        @Deprecated
-        @XCollection(elementName = "path")
-        public List<String> extraProjectPaths = new ArrayList<>();
-
         /** How often to poll, in seconds. Clamped to {@link #MIN_POLL_SECONDS} when applied. */
         public int pollIntervalSeconds = DEFAULT_POLL_SECONDS;
 
-        /** Watch the GitLab projects matching the git remotes of open IDE projects. */
+        /** Watch the projects matching the git remotes of open IDE projects. */
         public boolean watchGitRemotes = true;
 
         /** Alert on pipelines triggered by the token's own user. */
@@ -105,8 +91,7 @@ public final class Settings implements PersistentStateComponent<Settings.State> 
 
         /**
          * The connection configured for every known provider, in registry order. A provider with
-         * nothing saved yet gets its default host - or, for GitLab, whatever the pre-connections
-         * settings held, so an upgrade keeps working without the user touching anything.
+         * nothing saved yet gets its default host.
          */
         public List<Connection> connections() {
             List<Connection> result = new ArrayList<>();
@@ -121,9 +106,6 @@ public final class Settings implements PersistentStateComponent<Settings.State> 
                 if (provider.id().equals(connection.provider)) {
                     return connection;
                 }
-            }
-            if (connections.isEmpty() && GitLabProvider.ID.equals(provider.id())) {
-                return new Connection(provider.id(), gitlabHost, extraProjectPaths);
             }
             return new Connection(provider.id(), provider.defaultHost(), List.of());
         }
