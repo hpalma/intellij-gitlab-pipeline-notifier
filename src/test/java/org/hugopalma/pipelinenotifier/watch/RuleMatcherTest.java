@@ -114,4 +114,17 @@ public class RuleMatcherTest {
         disabled.enabled = false;
         assertTrue(RuleMatcher.planQueries(List.of(disabled)).isEmpty());
     }
+
+    @Test
+    public void usernameIsRecheckedWhenTheRunReportsWhoTriggeredIt() {
+        PipelineRun byOther = new PipelineRun(1L, "main", "abcdef12", "push", null, null, null, "someone-else");
+        PipelineRun byMe = new PipelineRun(2L, "main", "abcdef12", "push", null, null, null, "Hugo");
+        NotificationRule mine = rule("hugo", null, null);
+
+        assertFalse(RuleMatcher.match(byOther, List.of(mine)).any());
+        // Logins are case-insensitive on GitHub.
+        assertTrue(RuleMatcher.match(byMe, List.of(mine)).any());
+        // A listing that does not say who triggered it is trusted to have been filtered server-side.
+        assertTrue(RuleMatcher.match(pipeline("main", "push"), List.of(mine)).any());
+    }
 }

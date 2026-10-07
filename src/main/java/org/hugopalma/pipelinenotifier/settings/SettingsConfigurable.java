@@ -179,10 +179,16 @@ public class SettingsConfigurable implements Configurable {
         boolean tokenChanged = !token.equals(loadedTokens.getOrDefault(id, ""));
         loadedTokens.put(id, token);
         loadedTokenHosts.put(id, newHost);
-        ApplicationManager.getApplication().executeOnPooledThread(() -> TokenStore.set(id, newHost, token));
+        // Only write what the user actually changed. The field is filled from the keychain
+        // asynchronously, so a fast Apply can see it still empty: writing it back unconditionally
+        // would wipe the stored token.
+        boolean hostChanged = !previousHost.equals(newHost);
+        if (tokenChanged || (hostChanged && !token.isEmpty())) {
+            ApplicationManager.getApplication().executeOnPooledThread(() -> TokenStore.set(id, newHost, token));
+        }
 
         String previousKey = connectionKey(id, previousHost);
-        if (!previousHost.equals(newHost)) {
+        if (hostChanged) {
             // Watermarks and the cached username are keyed to the old server and its user; keeping
             // them across a host change would silently suppress the first alerts from the new one.
             if (previousKey != null) {

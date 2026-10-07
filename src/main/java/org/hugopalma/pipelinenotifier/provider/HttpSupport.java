@@ -5,6 +5,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
@@ -39,8 +40,17 @@ public final class HttpSupport {
         if (status >= 200 && status < 300) {
             return response.body();
         }
-        if (status == 401 || status == 403) {
-            throw new CiAuthException(service + " rejected the token (HTTP " + status + "). " + authFailure);
+        if (status == 429 || (status == 403 && isRateLimited(response))) {
+            Duration retryAfter = retryAfter(response);
+            throw new CiRateLimitException(status, service + " rate limit exceeded for " + path, retryAfter);
+        }
+        if (status == 401) {
+            throw new CiAuthException(service + " rejected the token (HTTP 401). " + authFailure);
+        }
+        if (status == 403) {
+            // Not necessarily the token: it may only lack access to this one project. Whether that
+            // adds up to a bad token is for the caller to judge across all of its projects.
+            throw new CiHttpException(status, service + " denied access (HTTP 403) to " + path + ". " + authFailure);
         }
         if (status >= 300 && status < 400) {
             throw new CiHttpException(status, service + " redirected the request (HTTP " + status
@@ -50,6 +60,33 @@ public final class HttpSupport {
             throw new CiHttpException(status, "Not found: " + path);
         }
         throw new CiHttpException(status, service + " returned HTTP " + status + " for " + path);
+    }
+
+    /** A 403 is a throttle rather than a refusal when the server says how long to wait or that the quota is spent. */
+    private static boolean isRateLimited(HttpResponse<String> response) {
+        return response.headers().firstValue("retry-after").isPresent()
+                || "0".equals(response.headers().firstValue("x-ratelimit-remaining").orElse(""));
+    }
+
+    /** From {@code Retry-After} (seconds) or, failing that, the quota reset time; {@code null} if neither is usable. */
+    static Duration retryAfter(HttpResponse<String> response) {
+        Long seconds = parseLong(response.headers().firstValue("retry-after").orElse(null));
+        if (seconds != null) {
+            return Duration.ofSeconds(Math.max(seconds, 0));
+        }
+        Long resetEpoch = parseLong(response.headers().firstValue("x-ratelimit-reset").orElse(null));
+        if (resetEpoch != null) {
+            return Duration.between(Instant.now(), Instant.ofEpochSecond(resetEpoch)).abs();
+        }
+        return null;
+    }
+
+    private static Long parseLong(String value) {
+        try {
+            return value == null ? null : Long.parseLong(value.trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     public static String query(List<Map.Entry<String, String>> params) {

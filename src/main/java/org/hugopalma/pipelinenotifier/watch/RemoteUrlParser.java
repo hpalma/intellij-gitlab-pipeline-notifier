@@ -63,10 +63,34 @@ public final class RemoteUrlParser {
         }
         path = trimSlashes(path);
 
-        if (host.isBlank() || path.isBlank() || !path.contains("/")) {
+        if (host.isBlank() || !isValidProjectPath(path)) {
             return null;
         }
         return new RemoteLocation(host.toLowerCase(Locale.ROOT), path);
+    }
+
+    private static final Pattern PATH_SEGMENT = Pattern.compile("[A-Za-z0-9_.-]+");
+
+    /**
+     * Whether {@code path} is a plausible {@code group/.../project}: at least two segments of the
+     * characters GitLab and GitHub allow in project paths. The path ends up in API request URLs and
+     * comes from a git remote (which a cloned repository controls) or from settings, so anything
+     * else - {@code ?}, {@code #}, {@code %}, {@code ..} - is refused rather than passed on.
+     */
+    public static boolean isValidProjectPath(String path) {
+        if (path == null || path.isBlank()) {
+            return false;
+        }
+        String[] segments = path.split("/", -1);
+        if (segments.length < 2) {
+            return false;
+        }
+        for (String segment : segments) {
+            if (segment.equals(".") || segment.equals("..") || !PATH_SEGMENT.matcher(segment).matches()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** Normalises a configured server base URL to a bare host, for comparison against remotes. */

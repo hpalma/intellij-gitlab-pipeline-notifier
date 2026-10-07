@@ -17,8 +17,7 @@ public record GitHubWorkflowRun(
         @SerializedName("html_url") String htmlUrl,
         @SerializedName("updated_at") String updatedAt,
         @SerializedName("run_attempt") int runAttempt,
-        Actor actor,
-        @SerializedName("triggering_actor") Actor triggeringActor) {
+        Actor actor) {
 
     public record Actor(String login) {
     }
@@ -28,9 +27,12 @@ public record GitHubWorkflowRun(
                        @SerializedName("workflow_runs") List<GitHubWorkflowRun> workflowRuns) {
     }
 
-    /** Whoever caused this attempt: a re-run is triggered by someone other than the original actor. */
+    /**
+     * The run's original actor, deliberately not {@code triggering_actor} (who last re-ran it): the
+     * server-side {@code actor} filter used to find "my" runs matches the original actor, so
+     * reporting anyone else would label runs inconsistently with how they were found.
+     */
     public String triggeredBy() {
-        Actor who = triggeringActor != null ? triggeringActor : actor;
-        return who == null ? null : who.login();
+        return actor == null ? null : actor.login();
     }
 }

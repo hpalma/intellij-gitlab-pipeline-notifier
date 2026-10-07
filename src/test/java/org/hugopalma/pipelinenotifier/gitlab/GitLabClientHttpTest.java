@@ -6,6 +6,7 @@ import org.hugopalma.pipelinenotifier.gitlab.model.GitLabProject;
 import org.hugopalma.pipelinenotifier.gitlab.model.GitLabUser;
 import org.hugopalma.pipelinenotifier.provider.CiAuthException;
 import org.hugopalma.pipelinenotifier.provider.CiHttpException;
+import org.hugopalma.pipelinenotifier.provider.CiRateLimitException;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -84,11 +85,13 @@ public class GitLabClientHttpTest {
     }
 
     @Test
-    public void mapsForbiddenToAuthException() {
+    public void mapsForbiddenToHttpExceptionNotAuthFailure() {
+        // A 403 can mean "this project only"; the poller decides whether it adds up to a bad token.
         nextStatus = 403;
         nextBody = "{}";
 
-        assertThrows(CiAuthException.class, client::currentUser);
+        CiHttpException e = assertThrows(CiHttpException.class, client::currentUser);
+        assertEquals(403, e.getStatus());
     }
 
     @Test
@@ -116,7 +119,7 @@ public class GitLabClientHttpTest {
         nextStatus = 429;
         nextBody = "";
 
-        CiHttpException e = assertThrows(CiHttpException.class, client::currentUser);
+        CiHttpException e = assertThrows(CiRateLimitException.class, client::currentUser);
         assertEquals(429, e.getStatus());
     }
 

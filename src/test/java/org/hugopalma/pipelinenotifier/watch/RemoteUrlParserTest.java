@@ -91,4 +91,26 @@ public class RemoteUrlParserTest {
         assertNull(RemoteUrlParser.hostOf(""));
         assertNull(RemoteUrlParser.hostOf(null));
     }
+
+    @Test
+    public void rejectsPathsThatCouldRewriteAnApiRequest() {
+        assertNull(RemoteUrlParser.parse("git@github.com:a/b/../../../user/keys?"));
+        assertNull(RemoteUrlParser.parse("https://github.com/a/b%2F..%2F..%2Fuser%2Fkeys%3F"));
+        assertNull(RemoteUrlParser.parse("https://github.com/a/../b"));
+        assertNull(RemoteUrlParser.parse("git@github.com:owner//repo.git"));
+    }
+
+    @Test
+    public void queryAndFragmentNeverReachThePath() {
+        assertEquals("a/b", RemoteUrlParser.parse("https://github.com/a/b?x=1#frag/c").path());
+    }
+
+    @Test
+    public void validatesProjectPaths() {
+        assertEquals(true, RemoteUrlParser.isValidProjectPath("group/sub-group/my_proj.v2"));
+        assertEquals(false, RemoteUrlParser.isValidProjectPath("onlyone"));
+        assertEquals(false, RemoteUrlParser.isValidProjectPath("a/./b"));
+        assertEquals(false, RemoteUrlParser.isValidProjectPath("a/b c"));
+        assertEquals(false, RemoteUrlParser.isValidProjectPath(null));
+    }
 }

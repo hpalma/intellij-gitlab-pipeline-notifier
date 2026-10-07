@@ -92,8 +92,10 @@ public final class ProjectDiscovery {
                 while (path.endsWith("/")) {
                     path = path.substring(0, path.length() - 1);
                 }
-                if (!path.isEmpty()) {
+                if (RemoteUrlParser.isValidProjectPath(path)) {
                     result.add(new RemoteProject(connection.provider, host, path));
+                } else if (!path.isEmpty()) {
+                    LOG.warn("Ignoring extra project '" + path + "': not a valid group/project path");
                 }
             }
         }

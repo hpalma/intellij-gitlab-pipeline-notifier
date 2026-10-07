@@ -9,6 +9,8 @@ import org.hugopalma.pipelinenotifier.notify.FailureAlerter;
 import org.hugopalma.pipelinenotifier.notify.PipelineFailure;
 import org.hugopalma.pipelinenotifier.provider.CiAuthException;
 import org.hugopalma.pipelinenotifier.provider.CiClient;
+import org.hugopalma.pipelinenotifier.provider.CiHttpException;
+import org.hugopalma.pipelinenotifier.provider.CiRateLimitException;
 import org.hugopalma.pipelinenotifier.provider.CiProvider;
 import org.hugopalma.pipelinenotifier.provider.CiProviders;
 import org.hugopalma.pipelinenotifier.provider.Page;
@@ -18,6 +20,7 @@ import org.hugopalma.pipelinenotifier.settings.NotifierState;
 import org.hugopalma.pipelinenotifier.settings.Settings;
 import org.hugopalma.pipelinenotifier.settings.TokenStore;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -51,6 +54,10 @@ public final class PipelinePoller implements Disposable {
     private static final int PER_PAGE = 100;
     /** Safety valve on how many pages one query is allowed to page through in a single tick. */
     private static final int MAX_PAGES = 10;
+    /** How far behind the newest run seen the watermark is kept; see {@link #pollTarget}. */
+    private static final Duration WATERMARK_OVERLAP = Duration.ofSeconds(60);
+    /** Longest a throttled connection is left alone, whatever the server asks for. */
+    private static final Duration MAX_SNOOZE = Duration.ofHours(1);
 
     private final Project project;
 
@@ -67,6 +74,9 @@ public final class PipelinePoller implements Disposable {
      * until {@link #restart()} - which settings changes trigger - while the others keep polling.
      */
     private final Set<String> pausedConnections = new HashSet<>();
+
+    /** Connections the server asked us to leave alone for a while, until the given instant. */
+    private final Map<String, Instant> snoozedUntil = new HashMap<>();
 
     private ScheduledFuture<?> scheduled;
     private boolean stopped;
@@ -108,6 +118,7 @@ public final class PipelinePoller implements Disposable {
         stop();
         clients.clear();
         pausedConnections.clear();
+        snoozedUntil.clear();
         backoffTicks = 0;
         start();
     }
@@ -197,6 +208,8 @@ public final class PipelinePoller implements Disposable {
                 pollConnection(provider, connection.host.trim(), token, connectionKey, own, settings);
             } catch (CiAuthException e) {
                 pauseConnection(provider, connectionKey, e, tickGeneration);
+            } catch (CiRateLimitException e) {
+                snoozeConnection(provider, connectionKey, e);
             } catch (InterruptedException e) {
                 throw e;
             } catch (Exception e) {
@@ -228,24 +241,63 @@ public final class PipelinePoller implements Disposable {
             return;
         }
 
+        int failed = 0;
+        int forbidden = 0;
+        Exception firstFailure = null;
         for (RemoteProject target : connectionTargets) {
-            // A single misconfigured or renamed target (bad path, deleted project) must not take
-            // down polling for every other watched project - so its failure is contained here
-            // rather than propagating up to tick(), which would back off the whole poller.
-            // CiAuthException is the exception: a bad token affects every target of its
-            // connection, so it still propagates and pauses that connection outright.
+            // A single misconfigured or renamed target (bad path, deleted project, a repo the token
+            // cannot see) must not take down polling for every other watched project - so its
+            // failure is contained here. A rejected token (401) and a throttled server affect every
+            // target of the connection, so those propagate and stop it outright or for a while.
             try {
                 pollTarget(client, notifierState, settings, queries, target, me);
-            } catch (CiAuthException | InterruptedException e) {
+            } catch (CiAuthException | CiRateLimitException | InterruptedException e) {
                 throw e;
             } catch (Exception e) {
                 LOG.warn("Poll failed for " + target.key() + ", skipping this tick", e);
+                failed++;
+                if (e instanceof CiHttpException http && http.getStatus() == 403) {
+                    forbidden++;
+                }
+                if (firstFailure == null) {
+                    firstFailure = e;
+                }
             }
+        }
+
+        // One forbidden project is a project problem; all of them is a token problem (missing scope).
+        if (forbidden == connectionTargets.size()) {
+            throw new CiAuthException(provider.displayName() + " denied access to every watched project (HTTP 403)."
+                    + " Check the token's scopes or permissions.");
+        }
+        // Every project failing is a server problem: surface it so the poller backs off.
+        if (failed == connectionTargets.size()) {
+            throw firstFailure;
         }
     }
 
     private synchronized boolean isPaused(String connectionKey) {
-        return pausedConnections.contains(connectionKey);
+        if (pausedConnections.contains(connectionKey)) {
+            return true;
+        }
+        Instant until = snoozedUntil.get(connectionKey);
+        if (until != null && Instant.now().isBefore(until)) {
+            return true;
+        }
+        snoozedUntil.remove(connectionKey);
+        return false;
+    }
+
+    /**
+     * Leaves a throttled server alone until it says it is ready, rather than asking again every tick
+     * for every project. Other connections carry on, and no poller-wide backoff is needed.
+     */
+    private synchronized void snoozeConnection(CiProvider provider, String connectionKey, CiRateLimitException e) {
+        Duration wait = e.getRetryAfter() == null ? Duration.ofSeconds(intervalSeconds() * 2) : e.getRetryAfter();
+        wait = wait.compareTo(MAX_SNOOZE) > 0 ? MAX_SNOOZE : wait;
+        wait = wait.compareTo(Duration.ofSeconds(intervalSeconds())) < 0 ? Duration.ofSeconds(intervalSeconds()) : wait;
+        snoozedUntil.put(connectionKey, Instant.now().plus(wait));
+        LOG.warn(provider.displayName() + " is rate limiting us; pausing it for " + wait.toSeconds() + "s");
     }
 
     private void pauseConnection(CiProvider provider, String connectionKey, CiAuthException e, long tickGeneration) {
@@ -329,7 +381,10 @@ public final class PipelinePoller implements Disposable {
         }
 
         if (fullyCovered) {
-            notifierState.advanceWatermark(target.key(), newest);
+            // Not quite to the newest run seen: a run can show up in the listing a little after one
+            // that finished later, and starting exactly at the newest would skip it for good. The
+            // overlap re-reads a short tail every tick; markAlerted keeps it from alerting twice.
+            notifierState.advanceWatermark(target.key(), newest.minus(WATERMARK_OVERLAP));
         }
     }
 
@@ -414,7 +469,7 @@ public final class PipelinePoller implements Disposable {
         }
 
         String triggeredBy = detail.triggeredBy();
-        boolean own = triggeredBy != null && triggeredBy.equals(me);
+        boolean own = triggeredBy != null && triggeredBy.equalsIgnoreCase(me);
 
         return new PipelineFailure(target, detail, failedJobs, triggeredBy, own);
     }

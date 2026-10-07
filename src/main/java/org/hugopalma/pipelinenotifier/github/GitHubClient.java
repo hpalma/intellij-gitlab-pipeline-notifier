@@ -9,7 +9,6 @@ import org.hugopalma.pipelinenotifier.github.model.GitHubRepo;
 import org.hugopalma.pipelinenotifier.github.model.GitHubUser;
 import org.hugopalma.pipelinenotifier.github.model.GitHubWorkflowRun;
 import org.hugopalma.pipelinenotifier.provider.CiClient;
-import org.hugopalma.pipelinenotifier.provider.CiHttpException;
 import org.hugopalma.pipelinenotifier.provider.HttpSupport;
 import org.hugopalma.pipelinenotifier.provider.Page;
 import org.hugopalma.pipelinenotifier.provider.PipelineRun;
@@ -172,9 +171,16 @@ public class GitHubClient implements CiClient {
                 run.triggeredBy());
     }
 
-    /** {@code path} is {@code owner/repo}; the slash must stay a slash, unlike on GitLab. */
+    /**
+     * {@code path} is {@code owner/repo}. It originates in a git remote or in settings, so each
+     * segment is encoded: a crafted one must not be able to reach another endpoint.
+     */
     private static String repoPath(RemoteProject target) {
-        return "/repos/" + target.path();
+        StringBuilder sb = new StringBuilder("/repos");
+        for (String segment : target.path().split("/")) {
+            sb.append('/').append(HttpSupport.encode(segment));
+        }
+        return sb.toString();
     }
 
     private String request(String path) throws IOException, InterruptedException {
@@ -191,12 +197,6 @@ public class GitHubClient implements CiClient {
         int status = response.statusCode();
         if (status >= 400) {
             LOG.debug("GitHub " + status + " for " + path + ": " + HttpSupport.truncate(response.body()));
-        }
-        // A 403 or 429 with no quota left is transient, not a bad token: it must back off, not
-        // pause polling for good.
-        if ((status == 403 || status == 429)
-                && "0".equals(response.headers().firstValue("x-ratelimit-remaining").orElse(""))) {
-            throw new CiHttpException(status, "GitHub rate limit exceeded for " + path);
         }
         return HttpSupport.requireSuccess(response, path, "GitHub",
                 "Check that it is valid and can read Actions on the watched repositories.");

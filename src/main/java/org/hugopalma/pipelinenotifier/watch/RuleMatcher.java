@@ -40,8 +40,9 @@ public final class RuleMatcher {
     /**
      * Channels to fire for {@code pipeline}, or {@link AlertChannels#NONE} if no rule matches.
      *
-     * <p>The username criterion is assumed to have been applied server-side by the query that
-     * produced {@code pipeline}; only the ref glob and sources are re-checked here.
+     * <p>The username criterion is applied server-side by the query that produced {@code pipeline}
+     * and re-checked here only when the run reports who triggered it; the ref glob and sources are
+     * always checked here.
      */
     public static AlertChannels match(PipelineRun pipeline, List<NotificationRule> rules) {
         AlertChannels result = AlertChannels.NONE;
@@ -54,6 +55,12 @@ public final class RuleMatcher {
     }
 
     private static boolean matches(PipelineRun pipeline, NotificationRule rule) {
+        // The query already filtered by user server-side, but a provider's filter need not agree with
+        // the user it reports; when both are known, they have to match.
+        String user = rule.username == null ? "" : rule.username.trim();
+        if (!user.isEmpty() && pipeline.triggeredBy() != null && !user.equalsIgnoreCase(pipeline.triggeredBy())) {
+            return false;
+        }
         String glob = rule.refGlob == null ? "" : rule.refGlob.trim();
         if (!glob.isEmpty()) {
             String ref = pipeline.ref() == null ? "" : pipeline.ref();

@@ -4,6 +4,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.hugopalma.pipelinenotifier.provider.CiAuthException;
 import org.hugopalma.pipelinenotifier.provider.CiHttpException;
+import org.hugopalma.pipelinenotifier.provider.CiRateLimitException;
 import org.hugopalma.pipelinenotifier.provider.Page;
 import org.hugopalma.pipelinenotifier.provider.PipelineRun;
 import org.hugopalma.pipelinenotifier.watch.RemoteProject;
@@ -35,6 +36,8 @@ public class GitHubClientHttpTest {
     private volatile int nextStatus;
     private volatile String nextBody;
     private volatile String rateLimitRemaining;
+    private volatile String rateLimitReset;
+    private volatile String retryAfterHeader;
     private volatile String lastRawPath;
     private volatile String lastQuery;
     private volatile String lastAuthHeader;
@@ -65,6 +68,12 @@ public class GitHubClientHttpTest {
         exchange.getResponseHeaders().set("Content-Type", "application/json");
         if (rateLimitRemaining != null) {
             exchange.getResponseHeaders().set("x-ratelimit-remaining", rateLimitRemaining);
+        }
+        if (rateLimitReset != null) {
+            exchange.getResponseHeaders().set("x-ratelimit-reset", rateLimitReset);
+        }
+        if (retryAfterHeader != null) {
+            exchange.getResponseHeaders().set("Retry-After", retryAfterHeader);
         }
         exchange.sendResponseHeaders(nextStatus, bytes.length);
         try (OutputStream os = exchange.getResponseBody()) {
@@ -98,22 +107,60 @@ public class GitHubClientHttpTest {
     }
 
     @Test
-    public void forbiddenIsAnAuthFailure() {
+    public void plainForbiddenIsPerRepoNotAnAuthFailure() {
+        // Fine-grained tokens, SSO-protected orgs and repos with Actions off all answer 403 for one
+        // repo while the token is fine for the rest.
         nextStatus = 403;
         nextBody = "{}";
-
-        assertThrows(CiAuthException.class, client::currentUser);
-    }
-
-    @Test
-    public void exhaustedRateLimitIsTransientNotAnAuthFailure() {
-        // GitHub reports quota exhaustion as 403; pausing polling over it would be wrong.
-        nextStatus = 403;
-        nextBody = "{}";
-        rateLimitRemaining = "0";
 
         CiHttpException e = assertThrows(CiHttpException.class, client::currentUser);
         assertEquals(403, e.getStatus());
+        assertFalse(e instanceof CiRateLimitException);
+    }
+
+    @Test
+    public void exhaustedQuotaIsARateLimitWithTheResetAsRetryAfter() {
+        // GitHub reports quota exhaustion as 403; pausing polling for good over it would be wrong.
+        nextStatus = 403;
+        nextBody = "{}";
+        rateLimitRemaining = "0";
+        rateLimitReset = String.valueOf(Instant.now().plusSeconds(120).getEpochSecond());
+
+        CiRateLimitException e = assertThrows(CiRateLimitException.class, client::currentUser);
+        long seconds = e.getRetryAfter().toSeconds();
+        assertTrue("retryAfter was " + seconds, seconds > 100 && seconds <= 120);
+    }
+
+    @Test
+    public void secondaryRateLimitIsHonouredViaRetryAfter() {
+        // The secondary limit is a 403 with Retry-After and quota still left.
+        nextStatus = 403;
+        nextBody = "{}";
+        rateLimitRemaining = "4000";
+        retryAfterHeader = "45";
+
+        CiRateLimitException e = assertThrows(CiRateLimitException.class, client::currentUser);
+        assertEquals(45L, e.getRetryAfter().toSeconds());
+    }
+
+    @Test
+    public void tooManyRequestsIsARateLimitEvenWithoutHeaders() {
+        nextStatus = 429;
+        nextBody = "{}";
+
+        CiRateLimitException e = assertThrows(CiRateLimitException.class, client::currentUser);
+        assertNull(e.getRetryAfter());
+    }
+
+    @Test
+    public void repoPathSegmentsAreEncodedSoACraftedPathCannotChangeTheEndpoint() throws Exception {
+        nextStatus = 200;
+        nextBody = "{\"workflow_runs\":[]}";
+
+        client.failedRuns(new RemoteProject("github", "github.com", "a/b?x=1"),
+                Instant.parse("2026-08-21T10:00:00Z"), null, 100, 1);
+
+        assertEquals("/api/v3/repos/a/b%3Fx%3D1/actions/runs", lastRawPath);
     }
 
     @Test
@@ -146,7 +193,8 @@ public class GitHubClientHttpTest {
         assertEquals("feature/x", run.ref());
         assertEquals("pull_request", run.source());
         assertEquals("Fix the thing", run.name());
-        assertEquals("rerunner", run.triggeredBy());
+        // The original actor - the one the server-side actor filter matches - not the re-runner.
+        assertEquals("original", run.triggeredBy());
         assertEquals(Instant.parse("2026-08-21T10:05:00Z"), run.updatedAt());
         assertFalse(page.hasMore());
     }
