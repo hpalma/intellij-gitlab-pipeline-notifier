@@ -16,6 +16,26 @@ public class UrlSafetyTest {
     }
 
     @Test
+    public void redactStripsEverythingUpToTheLastAtOfTheAuthority() {
+        // A password containing '@' must not leave its tail behind.
+        assertEquals("https://gitlab.com/g/p.git", UrlSafety.redact("https://user:p@ss@gitlab.com/g/p.git"));
+    }
+
+    @Test
+    public void redactMasksTokenQueryValues() {
+        assertEquals("https://x.example/api?private_token=***&a=1",
+                UrlSafety.redact("https://x.example/api?private_token=glpat-secret&a=1"));
+    }
+
+    @Test
+    public void invalidUrlErrorDoesNotCarryTheTypedValue() {
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> UrlSafety.normalizeBaseUrl("https://user:tok en@gitlab.com"));
+        assertFalse(String.valueOf(e.getMessage()).contains("tok"));
+        assertEquals(null, e.getCause());
+    }
+
+    @Test
     public void normalizeDefaultsToHttpsAndStripsSlashes() {
         assertEquals("https://gitlab.com", UrlSafety.normalizeBaseUrl(" gitlab.com/ "));
         assertEquals("http://127.0.0.1:8080", UrlSafety.normalizeBaseUrl("http://127.0.0.1:8080"));

@@ -2,6 +2,8 @@ package org.hugopalma.pipelinenotifier.settings;
 
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.ui.DocumentAdapter;
+import com.intellij.ui.JBColor;
 import com.intellij.ui.ToolbarDecorator;
 import com.intellij.ui.components.JBLabel;
 import com.intellij.ui.components.JBList;
@@ -11,16 +13,20 @@ import com.intellij.util.ui.FormBuilder;
 import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
 import org.hugopalma.pipelinenotifier.provider.CiProvider;
+import org.jetbrains.annotations.NotNull;
 
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicInteger;
 import javax.swing.DefaultListModel;
 import javax.swing.JButton;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
+import javax.swing.event.DocumentEvent;
 
 /**
  * The settings of one provider's connection: server URL, token, and the extra projects to watch.
@@ -33,6 +39,16 @@ final class ConnectionPanel {
     private final JBTextField host = new JBTextField();
     private final JBPasswordField token = new JBPasswordField();
     private final JBLabel connectionResult = new JBLabel(" ");
+    private final JBLabel insecureWarning = new JBLabel(" ");
+    private final AtomicInteger testSeq = new AtomicInteger();
+
+    /**
+     * The server the token in the field was loaded for, or {@code null} if the user typed it. A
+     * loaded token is only ever sent to that server: editing the URL clears it, so a token for one
+     * server is not silently carried over to another.
+     */
+    private String tokenHost;
+    private boolean settingToken;
 
     private final List<String> extraProjectPaths = new ArrayList<>();
     private final DefaultListModel<String> extraProjectsListModel = new DefaultListModel<>();
@@ -50,6 +66,22 @@ final class ConnectionPanel {
         tokenRow.add(token, BorderLayout.CENTER);
         tokenRow.add(testConnection, BorderLayout.EAST);
 
+        host.getDocument().addDocumentListener(new DocumentAdapter() {
+            @Override
+            protected void textChanged(@NotNull DocumentEvent e) {
+                onHostEdited();
+            }
+        });
+        token.getDocument().addDocumentListener(new DocumentAdapter() {
+            @Override
+            protected void textChanged(@NotNull DocumentEvent e) {
+                if (!settingToken) {
+                    tokenHost = null;
+                }
+            }
+        });
+        insecureWarning.setForeground(JBColor.ORANGE);
+
         extraProjectsList.setVisibleRowCount(4);
         extraProjectsList.getEmptyText().setText("No extra projects selected");
         JPanel extraProjectsPanel = ToolbarDecorator.createDecorator(extraProjectsList)
@@ -63,6 +95,7 @@ final class ConnectionPanel {
                 .addLabeledComponent(provider.displayName() + " URL:", host, 1, false)
                 .addComponent(new SettingsComponent.CommentLabel(
                         "Base URL of your " + provider.displayName() + " server, e.g. " + provider.defaultHost()))
+                .addComponent(insecureWarning)
                 .addLabeledComponent("Access token:", tokenRow, 1, false)
                 .addComponent(new SettingsComponent.CommentLabel(provider.tokenHint()))
                 .addComponent(connectionResult)
@@ -95,6 +128,7 @@ final class ConnectionPanel {
         }
 
         showResult("Connecting...", true);
+        int mySeq = testSeq.incrementAndGet();
         ApplicationManager.getApplication().executeOnPooledThread(() -> {
             String message;
             boolean ok;
@@ -107,7 +141,12 @@ final class ConnectionPanel {
             }
             String finalMessage = message;
             boolean finalOk = ok;
-            SwingUtilities.invokeLater(() -> showResult(finalMessage, finalOk));
+            // A newer test, or an edit that invalidated this one, owns the label now.
+            SwingUtilities.invokeLater(() -> {
+                if (testSeq.get() == mySeq) {
+                    showResult(finalMessage, finalOk);
+                }
+            });
         });
     }
 
@@ -157,12 +196,49 @@ final class ConnectionPanel {
         host.setText(value == null ? "" : value);
     }
 
+    private void onHostEdited() {
+        testSeq.incrementAndGet();
+        boolean plainHttp = getHost().toLowerCase(Locale.ROOT).startsWith("http://");
+        insecureWarning.setText(plainHttp
+                ? "This URL uses http: the access token will be sent unencrypted."
+                : " ");
+
+        if (tokenHost != null && !getHost().equals(tokenHost) && !getToken().isEmpty()) {
+            fillToken("");
+            tokenHost = null;
+            showResult("Token cleared because the URL changed. Enter the token for the new server.", false);
+        }
+    }
+
     String getToken() {
         return new String(token.getPassword());
     }
 
-    void setToken(String value) {
-        token.setText(value == null ? "" : value);
+    /** Empties the field, e.g. while a stored token is being looked up. */
+    void clearToken() {
+        fillToken("");
+        tokenHost = null;
+    }
+
+    /**
+     * Shows a token read from the password safe for {@code forHost}. Ignored if the URL has been
+     * edited since the read began: that token no longer belongs to what is on screen.
+     */
+    void setStoredToken(String value, String forHost) {
+        if (!getHost().equals(forHost)) {
+            return;
+        }
+        fillToken(value == null ? "" : value);
+        tokenHost = value == null || value.isEmpty() ? null : forHost;
+    }
+
+    private void fillToken(String value) {
+        settingToken = true;
+        try {
+            token.setText(value);
+        } finally {
+            settingToken = false;
+        }
     }
 
     List<String> getExtraProjectPaths() {

@@ -200,6 +200,16 @@ public class GitHubClientHttpTest {
     }
 
     @Test
+    public void createdWindowIsSentWithWholeSeconds() throws Exception {
+        nextStatus = 200;
+        nextBody = "{\"workflow_runs\":[]}";
+
+        client.failedRuns(TARGET, Instant.parse("2026-08-21T10:00:00.123456789Z"), null, 100, 1);
+
+        assertTrue(lastQuery, lastQuery.contains("created=%3E%3D2026-08-20T22%3A00%3A00Z"));
+    }
+
+    @Test
     public void failedRunsDropsRunsLastUpdatedBeforeTheWatermark() throws Exception {
         // Created inside the lookback but finished failing before 'since': already handled.
         nextStatus = 200;

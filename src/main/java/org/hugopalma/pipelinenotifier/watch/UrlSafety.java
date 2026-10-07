@@ -12,11 +12,13 @@ public final class UrlSafety {
     }
 
     /**
-     * Strips {@code user:password@} from every URL in {@code text}, so remotes such as
+     * Strips {@code user:password@} from every URL in {@code text}, up to the last {@code @} of the
+     * authority, and masks {@code token=} style query values, so remotes such as
      * {@code https://user:glpat-xxxx@gitlab.com/g/p.git} are safe to write to idea.log.
      */
     public static String redact(String text) {
-        return text == null ? null : text.replaceAll("(?<=://)[^/@\\s]+@", "");
+        return text == null ? null : text.replaceAll("(?<=://)[^/\\s]*@", "")
+                .replaceAll("(?i)\\b(private_token|access_token|token)=[^&\\s]*", "$1=***");
     }
 
     /**
@@ -46,7 +48,7 @@ public final class UrlSafety {
         try {
             uri = new URI(trimmed.contains("://") ? trimmed : "https://" + trimmed);
         } catch (Exception e) {
-            throw new IllegalArgumentException("Server URL is not valid", e);
+            throw new IllegalArgumentException("Server URL is not valid");
         }
         String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
         if (!scheme.equals("https") && !scheme.equals("http")) {

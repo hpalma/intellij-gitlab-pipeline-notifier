@@ -30,6 +30,14 @@ public interface CiProvider {
      */
     Map<String, String> sourceChoices();
 
+    /**
+     * Whether {@code Octo/Repo} and {@code octo/repo} are different projects. If not, discovery folds
+     * paths to lower case so the same project is never watched, and alerted on, twice.
+     */
+    default boolean pathsCaseSensitive() {
+        return true;
+    }
+
     /** @throws IllegalArgumentException if {@code host} cannot be a server URL for this service */
     CiClient createClient(String host, String token);
 }

@@ -25,6 +25,7 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -82,7 +83,7 @@ public class GitHubClient implements CiClient {
     @Override
     public Page<PipelineRun> failedRuns(RemoteProject target, Instant since, String username, int perPage, int page)
             throws IOException, InterruptedException {
-        Instant createdFrom = since.minus(CREATED_LOOKBACK);
+        Instant createdFrom = since.minus(CREATED_LOOKBACK).truncatedTo(ChronoUnit.SECONDS);
         List<Map.Entry<String, String>> params = new ArrayList<>();
         params.add(Map.entry("status", "failure"));
         params.add(Map.entry("created", ">=" + DateTimeFormatter.ISO_INSTANT.format(createdFrom)));
