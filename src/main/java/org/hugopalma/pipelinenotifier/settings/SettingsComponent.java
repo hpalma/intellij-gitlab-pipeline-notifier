@@ -1,5 +1,6 @@
 package org.hugopalma.pipelinenotifier.settings;
 
+import com.intellij.ui.TitledSeparator;
 import com.intellij.ui.ToolbarDecorator;
 import com.intellij.ui.components.*;
 import com.intellij.ui.table.JBTable;
@@ -76,28 +77,34 @@ public class SettingsComponent {
         // environment) - only interaction is blocked, since toggling it here could never do anything.
         watchGitRemotes.setEnabled(gitRemoteDiscoverySupported);
 
+        // Sections make the scope of each setting explicit: what is configured per service lives
+        // under "Services", everything else applies to all of them.
         FormBuilder formBuilder = FormBuilder.createFormBuilder()
+                .addComponent(new TitledSeparator("Services"))
+                .addComponent(new CommentLabel(
+                        "Server, access token and extra projects are set separately for each service."))
                 .addComponent(connectionTabs)
+                .addVerticalGap(UIUtil.LARGE_VGAP)
+                .addComponent(new TitledSeparator("General (All Services)"))
                 .addLabeledComponent("Poll every (seconds):", pollInterval, 1, false)
                 .addComponent(new CommentLabel("Minimum " + Settings.MIN_POLL_SECONDS + " seconds."))
-                .addSeparator(UIUtil.LARGE_VGAP)
                 .addComponent(watchGitRemotes);
 
         if (!gitRemoteDiscoverySupported) {
             formBuilder.addComponent(new CommentLabel(
                     "Not available in a client/server installation (e.g. Remote Development)."
-                            + " Use \"Also watch these projects\" in a server's tab instead."));
+                            + " Use \"Also watch these projects\" in a service's tab instead."));
         }
 
         mainPanel = formBuilder
                 .addComponent(alertOnRetries)
-                .addSeparator(UIUtil.LARGE_VGAP)
+                .addVerticalGap(UIUtil.LARGE_VGAP)
+                .addComponent(new TitledSeparator("Alerts (All Services)"))
                 .addComponent(notifyOwnFailures)
                 .addComponent(ownChannels)
-                .addSeparator(UIUtil.LARGE_VGAP)
                 .addLabeledComponent("Also alert me about:", rulesPanel, 1, true)
                 .addComponent(new CommentLabel(
-                        "Rules for other people's pipelines. Each rule picks its own alert channels."))
+                        "Rules for other people's pipelines. Each rule applies to one service and picks its own alert channels."))
                 .addComponentFillVertically(new JPanel(), 0)
                 .getPanel();
     }
