@@ -205,7 +205,7 @@ public final class PipelinePoller implements Disposable {
             }
 
             try {
-                pollConnection(provider, connection.host.trim(), token, connectionKey, own, settings);
+                pollConnection(provider, connection.host.trim(), token, connectionKey, own, settings, tickGeneration);
             } catch (CiAuthException e) {
                 pauseConnection(provider, connectionKey, e, tickGeneration);
             } catch (CiRateLimitException e) {
@@ -231,7 +231,8 @@ public final class PipelinePoller implements Disposable {
                                 String token,
                                 String connectionKey,
                                 List<RemoteProject> connectionTargets,
-                                Settings.State settings) throws Exception {
+                                Settings.State settings,
+                                long tickGeneration) throws Exception {
         CiClient client = clientFor(provider, host, token);
         NotifierState notifierState = NotifierState.getInstance();
 
@@ -250,7 +251,7 @@ public final class PipelinePoller implements Disposable {
             // failure is contained here. A rejected token (401) and a throttled server affect every
             // target of the connection, so those propagate and stop it outright or for a while.
             try {
-                pollTarget(client, notifierState, settings, queries, target, me);
+                pollTarget(client, notifierState, settings, queries, target, me, tickGeneration);
             } catch (CiAuthException | CiRateLimitException | InterruptedException e) {
                 throw e;
             } catch (Exception e) {
@@ -274,6 +275,10 @@ public final class PipelinePoller implements Disposable {
         if (failed == connectionTargets.size()) {
             throw firstFailure;
         }
+    }
+
+    private synchronized boolean isCurrent(long tickGeneration) {
+        return tickGeneration == generation;
     }
 
     private synchronized boolean isPaused(String connectionKey) {
@@ -319,7 +324,8 @@ public final class PipelinePoller implements Disposable {
                             Settings.State settings,
                             List<PollQuery> queries,
                             RemoteProject target,
-                            String me) throws Exception {
+                            String me,
+                            long tickGeneration) throws Exception {
         Instant now = Instant.now();
         Instant since = notifierState.watermarkFor(target.key(), now);
         Instant newest = since;
@@ -365,6 +371,12 @@ public final class PipelinePoller implements Disposable {
                     fullyCovered = false;
                 }
             }
+        }
+
+        // stop()/restart() may have run while this tick was fetching. It would alert and move
+        // watermarks using the old client, token and settings, racing the tick chain that replaced it.
+        if (!isCurrent(tickGeneration)) {
+            return;
         }
 
         for (Map.Entry<Long, PipelineRun> entry : matched.entrySet()) {

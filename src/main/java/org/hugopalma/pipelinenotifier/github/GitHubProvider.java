@@ -50,6 +50,11 @@ public final class GitHubProvider implements CiProvider {
     }
 
     @Override
+    public boolean pathsCaseSensitive() {
+        return false;
+    }
+
+    @Override
     public Map<String, String> sourceChoices() {
         return SOURCES;
     }

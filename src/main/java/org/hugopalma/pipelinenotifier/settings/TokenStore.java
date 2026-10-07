@@ -4,7 +4,6 @@ import com.intellij.credentialStore.CredentialAttributes;
 import com.intellij.credentialStore.CredentialAttributesKt;
 import com.intellij.credentialStore.Credentials;
 import com.intellij.ide.passwordSafe.PasswordSafe;
-import org.hugopalma.pipelinenotifier.gitlab.GitLabProvider;
 
 /**
  * Stores each connection's access token in the IDE password safe (macOS Keychain, Windows
@@ -20,13 +19,9 @@ public final class TokenStore {
     private TokenStore() {
     }
 
-    /**
-     * GitLab keeps the bare subsystem name it had before other providers existed, so tokens already
-     * in the password safe stay reachable.
-     */
+    /** Keyed by provider as well as host, so two services can never be handed each other's token. */
     private static CredentialAttributes attributes(String provider, String host) {
-        String subsystem = GitLabProvider.ID.equals(provider) ? SUBSYSTEM : SUBSYSTEM + " (" + provider + ")";
-        String serviceName = CredentialAttributesKt.generateServiceName(subsystem, host);
+        String serviceName = CredentialAttributesKt.generateServiceName(SUBSYSTEM + " (" + provider + ")", host);
         return new CredentialAttributes(serviceName, USER);
     }
 

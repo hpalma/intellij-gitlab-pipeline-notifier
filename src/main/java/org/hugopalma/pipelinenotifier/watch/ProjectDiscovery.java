@@ -7,6 +7,8 @@ import com.intellij.openapi.roots.ProjectRootManager;
 import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.platform.ide.productMode.IdeProductMode;
+import org.hugopalma.pipelinenotifier.provider.CiProvider;
+import org.hugopalma.pipelinenotifier.provider.CiProviders;
 import org.hugopalma.pipelinenotifier.settings.Settings;
 
 import java.io.IOException;
@@ -14,6 +16,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -93,7 +96,7 @@ public final class ProjectDiscovery {
                     path = path.substring(0, path.length() - 1);
                 }
                 if (RemoteUrlParser.isValidProjectPath(path)) {
-                    result.add(new RemoteProject(connection.provider, host, path));
+                    result.add(new RemoteProject(connection.provider, host, canonicalPath(connection.provider, path)));
                 } else if (!path.isEmpty()) {
                     LOG.warn("Ignoring extra project '" + path + "': not a valid group/project path");
                 }
@@ -104,6 +107,11 @@ public final class ProjectDiscovery {
         return result;
     }
 
+    private static String canonicalPath(String providerId, String path) {
+        CiProvider provider = CiProviders.find(providerId);
+        return provider != null && !provider.pathsCaseSensitive() ? path.toLowerCase(Locale.ROOT) : path;
+    }
+
     /** Remotes pointing at a host nobody configured - a mirror, a self-hosted server - are dropped. */
     static Set<RemoteProject> assignToConnections(Set<RemoteLocation> locations, List<Settings.Connection> connections) {
         Set<RemoteProject> result = new LinkedHashSet<>();
@@ -111,7 +119,8 @@ public final class ProjectDiscovery {
             boolean claimed = false;
             for (Settings.Connection connection : connections) {
                 if (location.host().equals(RemoteUrlParser.hostOf(connection.host))) {
-                    result.add(new RemoteProject(connection.provider, location.host(), location.path()));
+                    result.add(new RemoteProject(connection.provider, location.host(),
+                            canonicalPath(connection.provider, location.path())));
                     claimed = true;
                     break;
                 }

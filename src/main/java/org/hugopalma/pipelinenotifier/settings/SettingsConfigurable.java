@@ -122,7 +122,7 @@ public class SettingsConfigurable implements Configurable {
         String id = provider.id();
         loadedTokenHosts.put(id, host);
         loadedTokens.put(id, "");
-        component.connection(id).setToken("");
+        component.connection(id).clearToken();
         if (host.isEmpty()) {
             return;
         }
@@ -134,7 +134,7 @@ public class SettingsConfigurable implements Configurable {
                 // The dialog may have been closed and re-opened while we were reading.
                 if (component != null && host.equals(loadedTokenHosts.get(id))) {
                     loadedTokens.put(id, token);
-                    component.connection(id).setToken(token);
+                    component.connection(id).setStoredToken(token, host);
                 }
             });
         });
@@ -183,8 +183,14 @@ public class SettingsConfigurable implements Configurable {
         // asynchronously, so a fast Apply can see it still empty: writing it back unconditionally
         // would wipe the stored token.
         boolean hostChanged = !previousHost.equals(newHost);
-        if (tokenChanged || (hostChanged && !token.isEmpty())) {
+        boolean writeToken = token.isEmpty() ? tokenChanged && !hostChanged : tokenChanged || hostChanged;
+        if (writeToken) {
             ApplicationManager.getApplication().executeOnPooledThread(() -> TokenStore.set(id, newHost, token));
+        }
+        if (hostChanged && !previousHost.isEmpty()) {
+            // The token was for the old server and the field no longer offers it for the new one;
+            // leaving it in the password safe would just be an orphaned credential.
+            ApplicationManager.getApplication().executeOnPooledThread(() -> TokenStore.set(id, previousHost, null));
         }
 
         String previousKey = connectionKey(id, previousHost);

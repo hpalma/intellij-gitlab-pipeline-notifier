@@ -49,6 +49,22 @@ public class ProjectDiscoveryTest {
     }
 
     @Test
+    public void foldsCaseOnlyForProvidersWhosePathsAreCaseInsensitive() {
+        List<Settings.Connection> connections = List.of(
+                new Settings.Connection("gitlab", "https://gitlab.com", List.of()),
+                new Settings.Connection("github", "https://github.com", List.of()));
+        Set<RemoteLocation> remotes = new LinkedHashSet<>(List.of(
+                new RemoteLocation("github.com", "Octo/Repo"),
+                new RemoteLocation("github.com", "octo/repo"),
+                new RemoteLocation("gitlab.com", "Group/Proj")));
+
+        assertEquals(
+                Set.of(new RemoteProject("github", "github.com", "octo/repo"),
+                        new RemoteProject("gitlab", "gitlab.com", "Group/Proj")),
+                ProjectDiscovery.assignToConnections(remotes, connections));
+    }
+
+    @Test
     public void assignsEachRemoteToTheConnectionOwningItsHost() {
         List<Settings.Connection> connections = List.of(
                 new Settings.Connection("gitlab", "https://gitlab.example.com", List.of()),
